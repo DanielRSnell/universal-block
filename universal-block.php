@@ -75,3 +75,9 @@ add_action( 'enqueue_block_editor_assets', 'universal_block_enqueue_block_editor
  */
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/blocks/class-universal-element.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/admin/class-admin.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/editor/class-editor-tweaks.php';
+
+/**
+ * Initialize editor tweaks.
+ */
+EditorTweaks::init();

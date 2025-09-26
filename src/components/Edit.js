@@ -12,6 +12,8 @@ import {
 } from '@wordpress/components';
 import { ElementTypeControls } from './ElementTypeControls';
 import { AttributesPanel } from './AttributesPanel';
+import { BlockNamePanel } from './BlockNamePanel';
+import { ClassesPanel } from './ClassesPanel';
 
 const ELEMENT_TYPES = [
 	{ label: __('Text', 'universal-block'), value: 'text' },
@@ -24,6 +26,7 @@ const ELEMENT_TYPES = [
 
 export default function Edit({ attributes, setAttributes }) {
 	const {
+		blockName,
 		elementType,
 		tagName,
 		content,
@@ -33,7 +36,8 @@ export default function Edit({ attributes, setAttributes }) {
 		src,
 		alt,
 		selfClosing,
-		globalAttrs
+		globalAttrs,
+		className
 	} = attributes;
 
 	const blockProps = useBlockProps();
@@ -133,6 +137,21 @@ export default function Edit({ attributes, setAttributes }) {
 	return (
 		<div {...wrapperProps}>
 			<InspectorControls>
+				<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+					<BlockNamePanel
+						blockName={blockName}
+						elementType={elementType}
+						setAttributes={setAttributes}
+					/>
+				</PanelBody>
+
+				<PanelBody title={__('CSS Classes', 'universal-block')} initialOpen={false}>
+					<ClassesPanel
+						className={className}
+						setAttributes={setAttributes}
+					/>
+				</PanelBody>
+
 				<PanelBody title={__('Element Settings', 'universal-block')}>
 					<SelectControl
 						label={__('Element Type', 'universal-block')}

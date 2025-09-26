@@ -19,6 +19,10 @@
 	"style": "file:./assets/css/style.css",
 	"render": "file:./includes/blocks/render-element.php",
 	"attributes": {
+		"blockName": {
+			"type": "string",
+			"default": ""
+		},
 		"elementType": {
 			"type": "string",
 			"default": "text"
@@ -61,16 +65,8 @@
 		"className": true,
 		"customClassName": true,
 		"anchor": true,
-		"align": ["left", "center", "right", "wide", "full"],
+		"align": ["wide", "full"],
 		"alignWide": true,
-		"layout": {
-			"allowSwitching": false,
-			"allowInheriting": false,
-			"allowEditing": true,
-			"default": {
-				"type": "constrained"
-			}
-		},
 		"spacing": {
 			"padding": true,
 			"margin": true,
