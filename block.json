@@ -1,0 +1,87 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "universal-block/element",
+	"version": "0.1.1",
+	"title": "Universal Element",
+	"category": "text",
+	"icon": "editor-code",
+	"description": "A designless polymorphic block that can be any HTML element.",
+	"keywords": [
+		"element",
+		"polymorphic",
+		"designless",
+		"html"
+	],
+	"textdomain": "universal-block",
+	"editorScript": "file:./build/index.js",
+	"editorStyle": "file:./build/index.css",
+	"style": "file:./assets/css/style.css",
+	"render": "file:./includes/blocks/render-element.php",
+	"attributes": {
+		"elementType": {
+			"type": "string",
+			"default": "text"
+		},
+		"tagName": {
+			"type": "string",
+			"default": "p"
+		},
+		"globalAttrs": {
+			"type": "object",
+			"default": {}
+		},
+		"content": {
+			"type": "string"
+		},
+		"href": {
+			"type": "string"
+		},
+		"target": {
+			"type": "string",
+			"default": ""
+		},
+		"rel": {
+			"type": "string",
+			"default": ""
+		},
+		"src": {
+			"type": "string"
+		},
+		"alt": {
+			"type": "string"
+		},
+		"selfClosing": {
+			"type": "boolean",
+			"default": false
+		}
+	},
+	"supports": {
+		"html": false,
+		"className": true,
+		"customClassName": true,
+		"anchor": true,
+		"align": ["left", "center", "right", "wide", "full"],
+		"alignWide": true,
+		"layout": {
+			"allowSwitching": false,
+			"allowInheriting": false,
+			"allowEditing": true,
+			"default": {
+				"type": "constrained"
+			}
+		},
+		"spacing": {
+			"padding": true,
+			"margin": true,
+			"blockGap": true
+		}
+	},
+	"example": {
+		"attributes": {
+			"elementType": "text",
+			"tagName": "p",
+			"content": "This is a universal element that can be any HTML tag."
+		}
+	}
+}
