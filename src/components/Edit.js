@@ -3,7 +3,8 @@ import {
 	InspectorControls,
 	RichText,
 	InnerBlocks,
-	useBlockProps
+	useBlockProps,
+	useInnerBlocksProps
 } from '@wordpress/block-editor';
 import {
 	PanelBody,
@@ -36,6 +37,14 @@ export default function Edit({ attributes, setAttributes }) {
 	} = attributes;
 
 	const blockProps = useBlockProps();
+
+	// For container elements, use useInnerBlocksProps to eliminate extra wrapper
+	const isContainer = elementType === 'container';
+	const { children, ...innerBlocksProps } = isContainer
+		? useInnerBlocksProps(blockProps, {
+			renderAppender: InnerBlocks.DefaultBlockAppender
+		})
+		: { children: null };
 
 	const renderElementTypeContent = () => {
 		switch (elementType) {
@@ -104,11 +113,7 @@ export default function Edit({ attributes, setAttributes }) {
 				return <hr />;
 
 			case 'container':
-				return (
-					<div>
-						<InnerBlocks />
-					</div>
-				);
+				return children;
 
 			default:
 				return (
@@ -122,8 +127,11 @@ export default function Edit({ attributes, setAttributes }) {
 		}
 	};
 
+	// Use innerBlocksProps for containers, blockProps for others
+	const wrapperProps = isContainer ? innerBlocksProps : blockProps;
+
 	return (
-		<div {...blockProps}>
+		<div {...wrapperProps}>
 			<InspectorControls>
 				<PanelBody title={__('Element Settings', 'universal-block')}>
 					<SelectControl
