@@ -22,7 +22,7 @@ $self_closing = $attributes['selfClosing'] ?? false;
 $allowed_tags = array(
 	'p', 'span', 'div', 'section', 'article', 'main', 'aside', 'header', 'footer',
 	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-	'a', 'img', 'hr'
+	'a', 'img', 'hr', 'svg'
 );
 
 if ( ! in_array( $tag_name, $allowed_tags, true ) ) {
@@ -32,35 +32,8 @@ if ( ! in_array( $tag_name, $allowed_tags, true ) ) {
 // Build additional attributes array for WordPress wrapper
 $additional_attrs = array();
 
-// Add element-specific attributes
-switch ( $element_type ) {
-	case 'link':
-		if ( ! empty( $attributes['href'] ) ) {
-			$additional_attrs['href'] = esc_url( $attributes['href'] );
-		}
-		if ( ! empty( $attributes['target'] ) ) {
-			$additional_attrs['target'] = esc_attr( $attributes['target'] );
-		}
-		if ( ! empty( $attributes['rel'] ) ) {
-			$additional_attrs['rel'] = esc_attr( $attributes['rel'] );
-		}
-		break;
-
-	case 'image':
-		if ( ! empty( $attributes['src'] ) ) {
-			$additional_attrs['src'] = esc_url( $attributes['src'] );
-		}
-		if ( ! empty( $attributes['alt'] ) ) {
-			$additional_attrs['alt'] = esc_attr( $attributes['alt'] );
-		}
-		if ( ! empty( $attributes['width'] ) ) {
-			$additional_attrs['width'] = esc_attr( $attributes['width'] );
-		}
-		if ( ! empty( $attributes['height'] ) ) {
-			$additional_attrs['height'] = esc_attr( $attributes['height'] );
-		}
-		break;
-}
+// Element-specific attributes are now handled in the global attributes loop below
+// This allows for easy manual override of any attribute
 
 // Add global attributes
 foreach ( $global_attrs as $attr_name => $attr_value ) {
@@ -80,6 +53,13 @@ foreach ( $global_attrs as $attr_name => $attr_value ) {
 		$additional_attrs[ $attr_name ] = esc_attr( $attr_value );
 	} elseif ( in_array( $attr_name, array( 'role', 'tabindex', 'title', 'style' ), true ) ) {
 		$additional_attrs[ $attr_name ] = esc_attr( $attr_value );
+	} elseif ( in_array( $attr_name, array( 'href', 'target', 'rel', 'src', 'alt', 'width', 'height', 'viewBox', 'xmlns', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width', 'opacity' ), true ) ) {
+		// Element-specific attributes that are now stored in globalAttrs
+		if ( $attr_name === 'href' || $attr_name === 'src' ) {
+			$additional_attrs[ $attr_name ] = esc_url( $attr_value );
+		} else {
+			$additional_attrs[ $attr_name ] = esc_attr( $attr_value );
+		}
 	}
 }
 
@@ -91,6 +71,9 @@ $final_content = '';
 if ( $element_type === 'container' ) {
 	// For containers, use InnerBlocks content (passed as $content parameter)
 	$final_content = $content;
+} elseif ( $element_type === 'svg' ) {
+	// For SVG elements, use the content attribute (which contains the inner SVG HTML)
+	$final_content = $block_content;
 } elseif ( $element_type === 'image' || $element_type === 'rule' ) {
 	// Self-closing elements have no content
 	$final_content = '';
@@ -101,9 +84,9 @@ if ( $element_type === 'container' ) {
 
 // Render the element
 if ( $self_closing || in_array( $tag_name, array( 'img', 'hr' ), true ) ) {
-	// Self-closing elements
+	// Self-closing elements (but NOT svg)
 	echo '<' . esc_attr( $tag_name ) . ' ' . $wrapper_attributes . ' />';
 } else {
-	// Elements with content
+	// Elements with content (including svg)
 	echo '<' . esc_attr( $tag_name ) . ' ' . $wrapper_attributes . '>' . $final_content . '</' . esc_attr( $tag_name ) . '>';
 }

@@ -36,24 +36,8 @@
 			"default": {}
 		},
 		"content": {
-			"type": "string"
-		},
-		"href": {
-			"type": "string"
-		},
-		"target": {
 			"type": "string",
 			"default": ""
-		},
-		"rel": {
-			"type": "string",
-			"default": ""
-		},
-		"src": {
-			"type": "string"
-		},
-		"alt": {
-			"type": "string"
 		},
 		"selfClosing": {
 			"type": "boolean",

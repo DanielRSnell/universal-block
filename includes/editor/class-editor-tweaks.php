@@ -27,6 +27,56 @@ class EditorTweaks {
 	 * Enqueue editor-specific assets (CSS/JS).
 	 */
 	public static function enqueue_editor_assets() {
+		// Check if React components exist
+		$react_js_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/components/editor-tweaks/universal-editor-tweaks-react.js';
+		$react_js_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/components/editor-tweaks/universal-editor-tweaks-react.js';
+		$react_css_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/components/editor-tweaks/universal-editor-tweaks-react.css';
+		$react_css_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/components/editor-tweaks/universal-editor-tweaks-react.css';
+
+		if ( file_exists( $react_js_path ) && file_exists( $react_css_path ) ) {
+			// Load legacy assets first (for parser functions)
+			self::enqueue_legacy_assets();
+
+			// Enqueue Universal Block API before React
+			self::enqueue_universal_block_api();
+
+			// Load React component system (bundled with all dependencies)
+			wp_enqueue_style(
+				'universal-editor-tweaks-react',
+				$react_css_file,
+				[],
+				UNIVERSAL_BLOCK_VERSION
+			);
+
+			wp_enqueue_script(
+				'universal-editor-tweaks-react',
+				$react_js_file,
+				[ 'wp-element', 'wp-components', 'wp-i18n', 'wp-dom-ready', 'universal-block-editor-tweaks-js', 'universal-block-api' ],
+				UNIVERSAL_BLOCK_VERSION,
+				true
+			);
+		} else {
+			// Fallback to legacy system only
+			self::enqueue_legacy_assets();
+
+			// Always enqueue Universal Block API
+			self::enqueue_universal_block_api();
+		}
+	}
+
+	/**
+	 * Enqueue legacy editor assets (fallback).
+	 */
+	private static function enqueue_legacy_assets() {
+		// Enqueue Lucide Icons CDN
+		wp_enqueue_script(
+			'lucide-icons',
+			'https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js',
+			[],
+			'0.454.0',
+			true
+		);
+
 		$css_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/editor/editor-tweaks.css';
 		$css_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/editor/editor-tweaks.css';
 
@@ -48,7 +98,27 @@ class EditorTweaks {
 			wp_enqueue_script(
 				'universal-block-editor-tweaks-js',
 				$js_file,
-				[ 'wp-blocks', 'wp-editor', 'wp-element', 'wp-dom-ready' ],
+				[ 'wp-blocks', 'wp-editor', 'wp-element', 'wp-dom-ready', 'lucide-icons' ],
+				UNIVERSAL_BLOCK_VERSION,
+				true
+			);
+		}
+	}
+
+
+	/**
+	 * Enqueue Universal Block API for global access.
+	 */
+	private static function enqueue_universal_block_api() {
+		$api_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/js/universal-block-api.js';
+		$api_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/js/universal-block-api.js';
+
+		// Enqueue API if it exists
+		if ( file_exists( $api_path ) ) {
+			wp_enqueue_script(
+				'universal-block-api',
+				$api_file,
+				[ 'wp-blocks', 'wp-data', 'wp-dom-ready' ],
 				UNIVERSAL_BLOCK_VERSION,
 				true
 			);

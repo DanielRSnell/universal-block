@@ -22,13 +22,6 @@ registerBlockType('universal-block/element', {
 		tagName: { type: 'string', default: 'p' },
 		globalAttrs: { type: 'object', default: {} },
 		content: { type: 'string' },
-		href: { type: 'string' },
-		target: { type: 'string', default: '' },
-		rel: { type: 'string', default: '' },
-		src: { type: 'string' },
-		alt: { type: 'string' },
-		width: { type: 'number' },
-		height: { type: 'number' },
 		selfClosing: { type: 'boolean', default: false }
 	},
 	edit: Edit,
