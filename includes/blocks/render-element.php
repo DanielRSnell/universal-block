@@ -12,21 +12,67 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$element_type = $attributes['elementType'] ?? 'text';
+// Support both legacy elementType and new contentType for migration
+$element_type = $attributes['elementType'] ?? null; // Legacy
+$content_type = $attributes['contentType'] ?? 'text'; // New system
 $tag_name = $attributes['tagName'] ?? 'p';
 $block_content = $attributes['content'] ?? '';
 $global_attrs = $attributes['globalAttrs'] ?? array();
 $self_closing = $attributes['selfClosing'] ?? false;
 
-// Sanitize tag name
+// Legacy migration: convert elementType to contentType
+if ( $element_type && ! isset( $attributes['contentType'] ) ) {
+	$legacy_mapping = array(
+		'text' => 'text',
+		'heading' => 'text',
+		'link' => 'text',
+		'image' => 'empty',
+		'rule' => 'empty',
+		'svg' => 'html',
+		'container' => 'blocks'
+	);
+	$content_type = $legacy_mapping[ $element_type ] ?? 'text';
+}
+
+// Expand allowed tags for the new flexible system
 $allowed_tags = array(
-	'p', 'span', 'div', 'section', 'article', 'main', 'aside', 'header', 'footer',
-	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-	'a', 'img', 'hr', 'svg'
+	// Text elements
+	'p', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'b', 'i', 'u', 's',
+	'mark', 'small', 'sub', 'sup', 'code', 'kbd', 'samp', 'var', 'q', 'cite', 'abbr', 'dfn', 'time', 'br',
+
+	// Semantic elements
+	'main', 'article', 'section', 'aside', 'header', 'footer', 'nav', 'div',
+	'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'figcaption', 'blockquote', 'pre', 'hr', 'address',
+	'details', 'summary', 'data',
+
+	// Interactive elements
+	'a', 'button',
+
+	// Media elements
+	'img', 'video', 'audio', 'picture', 'source', 'track', 'embed', 'object', 'param', 'canvas', 'svg',
+	'map', 'area',
+
+	// Form elements
+	'form', 'input', 'textarea', 'select', 'option', 'optgroup', 'label', 'fieldset', 'legend',
+	'datalist', 'output', 'progress', 'meter',
+
+	// Structural elements
+	'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup', 'col',
+	'ruby', 'rb', 'rt', 'rp', 'template', 'slot',
+
+	// Custom elements (allow any tag with hyphen for web components)
+	'iframe', 'script', 'style', 'noscript', 'wbr'
 );
 
+// Allow custom elements (must contain hyphen for web components)
 if ( ! in_array( $tag_name, $allowed_tags, true ) ) {
-	$tag_name = 'div';
+	if ( strpos( $tag_name, '-' ) !== false ) {
+		// Valid custom element name - allow it
+		$tag_name = preg_replace( '/[^a-zA-Z0-9\-]/', '', $tag_name );
+	} else {
+		// Invalid tag name - fallback to div
+		$tag_name = 'div';
+	}
 }
 
 // Build additional attributes array for WordPress wrapper
@@ -66,20 +112,50 @@ foreach ( $global_attrs as $attr_name => $attr_value ) {
 // Get WordPress block wrapper attributes (includes automatic classes)
 $wrapper_attributes = get_block_wrapper_attributes( $additional_attrs );
 
-// Determine what content to use
+// Determine what content to use based on contentType
 $final_content = '';
-if ( $element_type === 'container' ) {
-	// For containers, use InnerBlocks content (passed as $content parameter)
-	$final_content = $content;
-} elseif ( $element_type === 'svg' ) {
-	// For SVG elements, use the content attribute (which contains the inner SVG HTML)
-	$final_content = $block_content;
-} elseif ( $element_type === 'image' || $element_type === 'rule' ) {
-	// Self-closing elements have no content
-	$final_content = '';
-} else {
-	// For text, heading, link - use block content attribute
-	$final_content = wp_kses_post( $block_content );
+switch ( $content_type ) {
+	case 'blocks':
+		// Use InnerBlocks content (passed as $content parameter)
+		$final_content = $content;
+		break;
+
+	case 'text':
+		// Use block content attribute with WordPress post sanitization
+		$final_content = wp_kses_post( $block_content );
+		break;
+
+	case 'html':
+		// Use block content attribute with minimal sanitization for HTML content
+		// For SVG, we want to preserve the HTML structure
+		if ( $tag_name === 'svg' ) {
+			$final_content = wp_kses( $block_content, array(
+				'path' => array( 'd' => true, 'fill' => true, 'stroke' => true, 'stroke-width' => true ),
+				'circle' => array( 'cx' => true, 'cy' => true, 'r' => true, 'fill' => true, 'stroke' => true ),
+				'rect' => array( 'x' => true, 'y' => true, 'width' => true, 'height' => true, 'fill' => true ),
+				'line' => array( 'x1' => true, 'y1' => true, 'x2' => true, 'y2' => true, 'stroke' => true ),
+				'polygon' => array( 'points' => true, 'fill' => true, 'stroke' => true ),
+				'polyline' => array( 'points' => true, 'fill' => true, 'stroke' => true ),
+				'ellipse' => array( 'cx' => true, 'cy' => true, 'rx' => true, 'ry' => true, 'fill' => true ),
+				'text' => array( 'x' => true, 'y' => true, 'fill' => true, 'font-family' => true, 'font-size' => true ),
+				'g' => array( 'transform' => true, 'fill' => true, 'stroke' => true ),
+				'defs' => array(),
+				'use' => array( 'href' => true, 'x' => true, 'y' => true ),
+				'symbol' => array( 'id' => true, 'viewBox' => true ),
+				'title' => array(),
+				'desc' => array()
+			) );
+		} else {
+			// For other HTML content, use more permissive sanitization
+			$final_content = wp_kses_post( $block_content );
+		}
+		break;
+
+	case 'empty':
+	default:
+		// No content for empty/self-closing elements
+		$final_content = '';
+		break;
 }
 
 // Render the element

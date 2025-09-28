@@ -9,14 +9,14 @@ import {
 } from '@wordpress/block-editor';
 import {
 	PanelBody,
-	SelectControl,
 	ToolbarGroup,
 	ToolbarDropdownMenu
 } from '@wordpress/components';
-import { ElementTypeControls } from './ElementTypeControls';
+import { TagControls } from './TagControls';
 import { AttributesPanel } from './AttributesPanel';
 import { BlockNamePanel } from './BlockNamePanel';
 import { ClassesPanel } from './ClassesPanel';
+import { getTagConfig, getDefaultContentType } from '../config/tags';
 
 // Global clipboard for copy/paste functionality
 let universalBlockClipboard = {
@@ -25,26 +25,60 @@ let universalBlockClipboard = {
 	styles: {}
 };
 
-const ELEMENT_TYPES = [
-	{ label: __('Text', 'universal-block'), value: 'text' },
-	{ label: __('Heading', 'universal-block'), value: 'heading' },
-	{ label: __('Link', 'universal-block'), value: 'link' },
-	{ label: __('Image', 'universal-block'), value: 'image' },
-	{ label: __('Rule', 'universal-block'), value: 'rule' },
-	{ label: __('SVG', 'universal-block'), value: 'svg' },
-	{ label: __('Container', 'universal-block'), value: 'container' }
-];
+// Content type mapping for backwards compatibility during migration
+const LEGACY_ELEMENT_TYPE_MAPPING = {
+	'text': { tagName: 'p', contentType: 'text' },
+	'heading': { tagName: 'h2', contentType: 'text' },
+	'link': { tagName: 'a', contentType: 'text' },
+	'image': { tagName: 'img', contentType: 'empty' },
+	'rule': { tagName: 'hr', contentType: 'empty' },
+	'svg': { tagName: 'svg', contentType: 'html' },
+	'container': { tagName: 'div', contentType: 'blocks' }
+};
 
 export default function Edit({ attributes, setAttributes }) {
 	const {
 		blockName,
-		elementType,
+		elementType, // Legacy - will be migrated
 		tagName,
+		contentType,
 		content,
 		selfClosing,
 		globalAttrs,
 		className
 	} = attributes;
+
+	// Migration: Convert legacy elementType to new tag-based system
+	const migratedAttributes = (() => {
+		if (elementType && !contentType) {
+			const mapping = LEGACY_ELEMENT_TYPE_MAPPING[elementType];
+			if (mapping) {
+				console.log(`🔄 Migrating legacy elementType "${elementType}" to tag-based system`);
+				return {
+					tagName: tagName || mapping.tagName,
+					contentType: mapping.contentType,
+					selfClosing: elementType === 'image' || elementType === 'rule'
+				};
+			}
+		}
+		return {
+			tagName: tagName || 'div',
+			contentType: contentType || getDefaultContentType(tagName || 'div'),
+			selfClosing: selfClosing || false
+		};
+	})();
+
+	// Apply migration if needed
+	if (elementType && !contentType) {
+		setAttributes({
+			...migratedAttributes,
+			elementType: undefined // Remove legacy attribute
+		});
+	}
+
+	const currentTagName = migratedAttributes.tagName;
+	const currentContentType = migratedAttributes.contentType;
+	const currentSelfClosing = migratedAttributes.selfClosing;
 
 	// Get element-specific attributes from globalAttrs
 	const src = globalAttrs?.src || '';
@@ -52,72 +86,30 @@ export default function Edit({ attributes, setAttributes }) {
 
 	const blockProps = useBlockProps();
 
-	// For container elements, use useInnerBlocksProps to eliminate extra wrapper
-	const isContainer = elementType === 'container';
-	const { children, ...innerBlocksProps } = isContainer
+	// For blocks content type, use useInnerBlocksProps to eliminate extra wrapper
+	const isBlocksContent = currentContentType === 'blocks';
+	const { children, ...innerBlocksProps } = isBlocksContent
 		? useInnerBlocksProps(blockProps, {
 			renderAppender: InnerBlocks.DefaultBlockAppender
 		})
 		: { children: null };
 
-	const renderElementTypeContent = () => {
-		switch (elementType) {
+	const renderContentByType = () => {
+		switch (currentContentType) {
 			case 'text':
-			case 'heading':
 				return (
 					<RichText
-						tagName={tagName}
+						tagName={currentTagName}
 						value={content}
 						onChange={(value) => setAttributes({ content: value })}
 						placeholder={__('Enter your text...', 'universal-block')}
 					/>
 				);
 
-			case 'link':
-				return (
-					<RichText
-						tagName="a"
-						value={content}
-						onChange={(value) => setAttributes({ content: value })}
-						placeholder={__('Enter link text...', 'universal-block')}
-					/>
-				);
+			case 'blocks':
+				return children;
 
-			case 'image':
-				if (!src) {
-					return (
-						<div
-							style={{
-								background: '#f0f0f0',
-								border: '1px dashed #ccc',
-								borderRadius: '4px',
-								padding: '40px 20px',
-								textAlign: 'center',
-								color: '#666',
-								minHeight: '120px',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								flexDirection: 'column'
-							}}
-						>
-							<div style={{ fontSize: '16px', marginBottom: '8px' }}>📷</div>
-							<div>{__('No image selected', 'universal-block')}</div>
-							<div style={{ fontSize: '12px', marginTop: '4px' }}>
-								{__('Enter image URL in the sidebar', 'universal-block')}
-							</div>
-						</div>
-					);
-				}
-
-				return (
-					<img
-						src={src}
-						alt={alt || ''}
-					/>
-				);
-
-			case 'svg':
+			case 'html':
 				if (!content) {
 					return (
 						<div
@@ -135,42 +127,98 @@ export default function Edit({ attributes, setAttributes }) {
 								flexDirection: 'column'
 							}}
 						>
-							<div style={{ fontSize: '16px', marginBottom: '8px' }}>🖼️</div>
-							<div>{__('No SVG content', 'universal-block')}</div>
+							<div style={{ fontSize: '16px', marginBottom: '8px' }}>📝</div>
+							<div>{__('No HTML content', 'universal-block')}</div>
 							<div style={{ fontSize: '12px', marginTop: '4px' }}>
-								{__('Add SVG content in the sidebar', 'universal-block')}
+								{__('Add HTML content in the sidebar', 'universal-block')}
 							</div>
 						</div>
 					);
 				}
 
-				// Combine globalAttrs to create the SVG element attributes
-				const svgAttrs = Object.entries(globalAttrs || {})
-					.map(([key, value]) => `${key}="${value}"`)
-					.join(' ');
-
-				const fullSvgContent = `<svg ${svgAttrs}>${content}</svg>`;
+				// For SVG tags, combine globalAttrs to create proper SVG
+				if (currentTagName === 'svg') {
+					const svgAttrs = Object.entries(globalAttrs || {})
+						.map(([key, value]) => `${key}="${value}"`)
+						.join(' ');
+					const fullSvgContent = `<svg ${svgAttrs}>${content}</svg>`;
+					return (
+						<div
+							dangerouslySetInnerHTML={{ __html: fullSvgContent }}
+						/>
+					);
+				}
 
 				return (
 					<div
-						dangerouslySetInnerHTML={{ __html: fullSvgContent }}
+						dangerouslySetInnerHTML={{ __html: content }}
 					/>
 				);
 
-			case 'rule':
-				return <hr />;
+			case 'empty':
+				// For images, show preview or placeholder
+				if (currentTagName === 'img') {
+					if (!src) {
+						return (
+							<div
+								style={{
+									background: '#f0f0f0',
+									border: '1px dashed #ccc',
+									borderRadius: '4px',
+									padding: '40px 20px',
+									textAlign: 'center',
+									color: '#666',
+									minHeight: '120px',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									flexDirection: 'column'
+								}}
+							>
+								<div style={{ fontSize: '16px', marginBottom: '8px' }}>📷</div>
+								<div>{__('No image selected', 'universal-block')}</div>
+								<div style={{ fontSize: '12px', marginTop: '4px' }}>
+									{__('Configure image in the sidebar', 'universal-block')}
+								</div>
+							</div>
+						);
+					}
 
-			case 'container':
-				return children;
+					return (
+						<img
+							src={src}
+							alt={alt || ''}
+						/>
+					);
+				}
+
+				// For hr and other void elements, show visual representation
+				if (currentTagName === 'hr') {
+					return <hr />;
+				}
+
+				// Generic empty element placeholder
+				return (
+					<div
+						style={{
+							background: '#f8f9fa',
+							border: '1px dashed #ddd',
+							borderRadius: '4px',
+							padding: '20px',
+							textAlign: 'center',
+							color: '#888',
+							fontSize: '14px'
+						}}
+					>
+						{__('Empty element', 'universal-block')} ({currentTagName})
+					</div>
+				);
 
 			default:
 				return (
-					<RichText
-						tagName={tagName}
-						value={content}
-						onChange={(value) => setAttributes({ content: value })}
-						placeholder={__('Enter your text...', 'universal-block')}
-					/>
+					<div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+						{__('Unknown content type:', 'universal-block')} {currentContentType}
+					</div>
 				);
 		}
 	};
@@ -258,8 +306,8 @@ export default function Edit({ attributes, setAttributes }) {
 		},
 	];
 
-	// Use innerBlocksProps for containers, blockProps for others
-	const wrapperProps = isContainer ? innerBlocksProps : blockProps;
+	// Use innerBlocksProps for blocks content, blockProps for others
+	const wrapperProps = isBlocksContent ? innerBlocksProps : blockProps;
 
 	return (
 		<div {...wrapperProps}>
@@ -289,104 +337,14 @@ export default function Edit({ attributes, setAttributes }) {
 					/>
 				</PanelBody>
 
-				<PanelBody title={__('Element Settings', 'universal-block')}>
-					<SelectControl
-						label={__('Element Type', 'universal-block')}
-						value={elementType}
-						options={ELEMENT_TYPES}
-						onChange={(value) => {
-							const updates = { elementType: value };
-
-							// Clean up globalAttrs - remove attributes that are incompatible with the new element type
-							const currentGlobalAttrs = { ...globalAttrs };
-							const cleanedGlobalAttrs = {};
-
-							// Define which attributes are valid for each element type
-							const validAttributesByType = {
-								text: ['style', 'id', 'title', 'data-*'],
-								heading: ['style', 'id', 'title', 'data-*'],
-								link: ['href', 'target', 'rel', 'style', 'id', 'title', 'data-*'],
-								image: ['src', 'alt', 'mediaId', 'style', 'id', 'title', 'data-*'],
-								svg: ['viewBox', 'width', 'height', 'fill', 'stroke', 'style', 'id', 'title', 'data-*'],
-								rule: ['style', 'id', 'title', 'data-*'],
-								container: ['style', 'id', 'title', 'data-*']
-							};
-
-							// Keep only attributes that are valid for the new element type
-							const validAttrs = validAttributesByType[value] || [];
-							Object.entries(currentGlobalAttrs).forEach(([key, val]) => {
-								// Keep attribute if it's specifically valid for this type
-								if (validAttrs.includes(key)) {
-									cleanedGlobalAttrs[key] = val;
-								}
-								// Keep data-* attributes for all types
-								else if (key.startsWith('data-')) {
-									cleanedGlobalAttrs[key] = val;
-								}
-								// Keep common attributes (style, id, title) for all types
-								else if (['style', 'id', 'title'].includes(key)) {
-									cleanedGlobalAttrs[key] = val;
-								}
-								// Remove type-specific attributes that don't belong
-							});
-
-							updates.globalAttrs = cleanedGlobalAttrs;
-
-							// Clean up content based on element type compatibility
-							const contentBasedTypes = ['text', 'heading', 'link', 'svg'];
-							const currentIsContentBased = contentBasedTypes.includes(elementType);
-							const newIsContentBased = contentBasedTypes.includes(value);
-
-							// If switching from content-based to non-content-based (or vice versa), clear content
-							if (currentIsContentBased !== newIsContentBased) {
-								updates.content = '';
-							}
-							// Special case: if switching to SVG and current content isn't SVG-like, clear it
-							else if (value === 'svg' && content && !content.includes('<')) {
-								updates.content = '';
-							}
-
-							// Set appropriate defaults when switching element types
-							switch (value) {
-								case 'text':
-									updates.tagName = 'p';
-									updates.selfClosing = false;
-									break;
-								case 'heading':
-									updates.tagName = 'h2';
-									updates.selfClosing = false;
-									break;
-								case 'link':
-									updates.tagName = 'a';
-									updates.selfClosing = false;
-									break;
-								case 'image':
-									updates.tagName = 'img';
-									updates.selfClosing = true;
-									break;
-								case 'svg':
-									updates.tagName = 'svg';
-									updates.selfClosing = false;
-									break;
-								case 'rule':
-									updates.tagName = 'hr';
-									updates.selfClosing = true;
-									break;
-								case 'container':
-									updates.tagName = 'div';
-									updates.selfClosing = false;
-									break;
-							}
-
-							console.log(`🔄 Switching from ${elementType} to ${value}`);
-							console.log('Cleaned globalAttrs:', cleanedGlobalAttrs);
-							setAttributes(updates);
+				<PanelBody title={__('Tag Settings', 'universal-block')}>
+					<TagControls
+						attributes={{
+							tagName: currentTagName,
+							contentType: currentContentType,
+							selfClosing: currentSelfClosing,
+							...attributes
 						}}
-					/>
-
-					<ElementTypeControls
-						elementType={elementType}
-						attributes={attributes}
 						setAttributes={setAttributes}
 					/>
 				</PanelBody>
@@ -397,7 +355,7 @@ export default function Edit({ attributes, setAttributes }) {
 				/>
 			</InspectorControls>
 
-			{renderElementTypeContent()}
+			{renderContentByType()}
 		</div>
 	);
 }
