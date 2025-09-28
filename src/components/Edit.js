@@ -297,6 +297,55 @@ export default function Edit({ attributes, setAttributes }) {
 						onChange={(value) => {
 							const updates = { elementType: value };
 
+							// Clean up globalAttrs - remove attributes that are incompatible with the new element type
+							const currentGlobalAttrs = { ...globalAttrs };
+							const cleanedGlobalAttrs = {};
+
+							// Define which attributes are valid for each element type
+							const validAttributesByType = {
+								text: ['style', 'id', 'title', 'data-*'],
+								heading: ['style', 'id', 'title', 'data-*'],
+								link: ['href', 'target', 'rel', 'style', 'id', 'title', 'data-*'],
+								image: ['src', 'alt', 'mediaId', 'style', 'id', 'title', 'data-*'],
+								svg: ['viewBox', 'width', 'height', 'fill', 'stroke', 'style', 'id', 'title', 'data-*'],
+								rule: ['style', 'id', 'title', 'data-*'],
+								container: ['style', 'id', 'title', 'data-*']
+							};
+
+							// Keep only attributes that are valid for the new element type
+							const validAttrs = validAttributesByType[value] || [];
+							Object.entries(currentGlobalAttrs).forEach(([key, val]) => {
+								// Keep attribute if it's specifically valid for this type
+								if (validAttrs.includes(key)) {
+									cleanedGlobalAttrs[key] = val;
+								}
+								// Keep data-* attributes for all types
+								else if (key.startsWith('data-')) {
+									cleanedGlobalAttrs[key] = val;
+								}
+								// Keep common attributes (style, id, title) for all types
+								else if (['style', 'id', 'title'].includes(key)) {
+									cleanedGlobalAttrs[key] = val;
+								}
+								// Remove type-specific attributes that don't belong
+							});
+
+							updates.globalAttrs = cleanedGlobalAttrs;
+
+							// Clean up content based on element type compatibility
+							const contentBasedTypes = ['text', 'heading', 'link', 'svg'];
+							const currentIsContentBased = contentBasedTypes.includes(elementType);
+							const newIsContentBased = contentBasedTypes.includes(value);
+
+							// If switching from content-based to non-content-based (or vice versa), clear content
+							if (currentIsContentBased !== newIsContentBased) {
+								updates.content = '';
+							}
+							// Special case: if switching to SVG and current content isn't SVG-like, clear it
+							else if (value === 'svg' && content && !content.includes('<')) {
+								updates.content = '';
+							}
+
 							// Set appropriate defaults when switching element types
 							switch (value) {
 								case 'text':
@@ -329,6 +378,8 @@ export default function Edit({ attributes, setAttributes }) {
 									break;
 							}
 
+							console.log(`🔄 Switching from ${elementType} to ${value}`);
+							console.log('Cleaned globalAttrs:', cleanedGlobalAttrs);
 							setAttributes(updates);
 						}}
 					/>
