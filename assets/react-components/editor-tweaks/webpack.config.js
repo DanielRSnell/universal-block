@@ -34,12 +34,14 @@ module.exports = {
   externals: {
     // Use WordPress provided React
     'react': 'React',
+    'react-dom': 'ReactDOM',
     // Use WordPress APIs
     '@wordpress/element': ['wp', 'element'],
     '@wordpress/components': ['wp', 'components'],
     '@wordpress/i18n': ['wp', 'i18n'],
     '@wordpress/data': ['wp', 'data'],
     '@wordpress/blocks': ['wp', 'blocks']
+    // Note: framer-motion will be bundled since WP doesn't provide it
   },
   resolve: {
     extensions: ['.js', '.jsx']

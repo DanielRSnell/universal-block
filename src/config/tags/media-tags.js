@@ -8,8 +8,12 @@ import { createTagConfig, createVoidTag, TAG_CATEGORIES, CONTENT_TYPES, COMMON_A
 
 export const mediaTags = {
 	// Images
-	'img': createVoidTag('img', 'Image', TAG_CATEGORIES.MEDIA, {
+	'img': createTagConfig({
+		label: 'Image',
+		category: TAG_CATEGORIES.MEDIA,
 		description: 'Embedded image',
+		contentType: CONTENT_TYPES.EMPTY, // Fixed content type - no options needed
+		selfClosing: true,
 		requiredAttrs: ['src', 'alt'],
 		commonAttrs: [...COMMON_ATTRS.GLOBAL, ...COMMON_ATTRS.MEDIA, 'loading', 'srcset', 'sizes'],
 		specialControls: ['MediaUpload', 'ImageSettings'],

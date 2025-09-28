@@ -45,14 +45,14 @@ class EditorTweaks {
 				'universal-editor-tweaks-react',
 				$react_css_file,
 				[],
-				UNIVERSAL_BLOCK_VERSION
+				UNIVERSAL_BLOCK_VERSION . '-' . filemtime( $react_css_path )
 			);
 
 			wp_enqueue_script(
 				'universal-editor-tweaks-react',
 				$react_js_file,
 				[ 'wp-element', 'wp-components', 'wp-i18n', 'wp-dom-ready', 'universal-block-editor-tweaks-js', 'universal-block-api' ],
-				UNIVERSAL_BLOCK_VERSION,
+				UNIVERSAL_BLOCK_VERSION . '-' . filemtime( $react_js_path ),
 				true
 			);
 		} else {

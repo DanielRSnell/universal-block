@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Support both legacy elementType and new contentType for migration
 $element_type = $attributes['elementType'] ?? null; // Legacy
-$content_type = $attributes['contentType'] ?? 'text'; // New system
+$content_type = $attributes['contentType'] ?? null; // New system - no default yet
 $tag_name = $attributes['tagName'] ?? 'p';
 $block_content = $attributes['content'] ?? '';
 $global_attrs = $attributes['globalAttrs'] ?? array();
@@ -32,6 +32,21 @@ if ( $element_type && ! isset( $attributes['contentType'] ) ) {
 		'container' => 'blocks'
 	);
 	$content_type = $legacy_mapping[ $element_type ] ?? 'text';
+}
+
+// If no contentType is set (not even from legacy), determine smart default
+if ( ! $content_type ) {
+	// Smart defaults based on tag
+	$void_elements = array( 'img', 'br', 'hr', 'input', 'meta', 'link' );
+	if ( in_array( $tag_name, $void_elements, true ) ) {
+		$content_type = 'empty';
+	} elseif ( $tag_name === 'svg' ) {
+		$content_type = 'html';
+	} elseif ( in_array( $tag_name, array( 'div', 'section', 'article', 'main' ), true ) ) {
+		$content_type = 'blocks';
+	} else {
+		$content_type = 'text';
+	}
 }
 
 // Expand allowed tags for the new flexible system

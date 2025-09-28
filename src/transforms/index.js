@@ -7,7 +7,7 @@ export const transforms = {
 			type: 'block',
 			blocks: ['core/paragraph'],
 			transform: (attributes) => {
-				return createBlock('universal-block/element', {
+				return createBlock('universal/element', {
 					elementType: 'text',
 					tagName: 'p',
 					content: attributes.content
@@ -18,7 +18,7 @@ export const transforms = {
 			type: 'block',
 			blocks: ['core/heading'],
 			transform: (attributes) => {
-				return createBlock('universal-block/element', {
+				return createBlock('universal/element', {
 					elementType: 'heading',
 					tagName: `h${attributes.level || 2}`,
 					content: attributes.content
@@ -29,7 +29,7 @@ export const transforms = {
 			type: 'block',
 			blocks: ['core/separator'],
 			transform: () => {
-				return createBlock('universal-block/element', {
+				return createBlock('universal/element', {
 					elementType: 'rule',
 					tagName: 'hr',
 					selfClosing: true
@@ -40,7 +40,7 @@ export const transforms = {
 			type: 'block',
 			blocks: ['core/button'],
 			transform: (attributes) => {
-				return createBlock('universal-block/element', {
+				return createBlock('universal/element', {
 					elementType: 'link',
 					tagName: 'a',
 					content: attributes.text,
@@ -53,7 +53,7 @@ export const transforms = {
 			type: 'block',
 			blocks: ['core/image'],
 			transform: (attributes) => {
-				return createBlock('universal-block/element', {
+				return createBlock('universal/element', {
 					elementType: 'image',
 					tagName: 'img',
 					src: attributes.url,
@@ -111,7 +111,7 @@ export const transforms = {
 					}
 				}
 
-				return createBlock('universal-block/element', {
+				return createBlock('universal/element', {
 					elementType,
 					tagName,
 					content,

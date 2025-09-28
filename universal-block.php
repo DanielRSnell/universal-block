@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'UNIVERSAL_BLOCK_VERSION', '0.2.0' );
+define( 'UNIVERSAL_BLOCK_VERSION', '0.2.1' );
 define( 'UNIVERSAL_BLOCK_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'UNIVERSAL_BLOCK_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -52,10 +52,34 @@ add_action( 'init', 'universal_block_load_textdomain' );
 function universal_block_enqueue_block_editor_assets() {
 	$asset_file = include( UNIVERSAL_BLOCK_PLUGIN_DIR . 'build/index.asset.php' );
 
+	// Enqueue Ace Editor
+	wp_enqueue_script(
+		'ace-editor',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/global/ace/src-min-noconflict/ace.js',
+		array(),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
+	// Enqueue HTML Beautifier
+	wp_enqueue_script(
+		'js-beautify-html',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/global/js-beautify/beautify-html.min.js',
+		array(),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
+	// Enqueue Emmet
+	wp_enqueue_script(
+		'emmet-core',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/global/emmet-core/emmet.js',
+		array(),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
 	wp_enqueue_script(
 		'universal-block-editor',
 		UNIVERSAL_BLOCK_PLUGIN_URL . 'build/index.js',
-		$asset_file['dependencies'],
+		array_merge( $asset_file['dependencies'], array( 'ace-editor', 'js-beautify-html', 'emmet-core' ) ),
 		UNIVERSAL_BLOCK_VERSION
 	);
 

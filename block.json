@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schemas.wp.org/trunk/block.json",
 	"apiVersion": 3,
-	"name": "universal-block/element",
+	"name": "universal/element",
 	"version": "0.1.1",
 	"title": "Universal Element",
 	"category": "text",
@@ -32,8 +32,7 @@
 			"default": "p"
 		},
 		"contentType": {
-			"type": "string",
-			"default": "text"
+			"type": "string"
 		},
 		"globalAttrs": {
 			"type": "object",
@@ -46,6 +45,14 @@
 		"selfClosing": {
 			"type": "boolean",
 			"default": false
+		},
+		"uiState": {
+			"type": "object",
+			"default": {
+				"tagCategory": "common",
+				"selectedTagName": "",
+				"selectedContentType": ""
+			}
 		}
 	},
 	"supports": {

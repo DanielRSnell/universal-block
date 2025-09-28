@@ -5,23 +5,40 @@
  * Provides lookup functions and filtering capabilities.
  */
 
+import { commonTags } from './common-tags';
 import { textTags } from './text-tags';
 import { semanticTags } from './semantic-tags';
 import { mediaTags } from './media-tags';
-import { interactiveTags } from './interactive-tags';
-import { structuralTags } from './structural-tags';
-import { formTags } from './form-tags';
-import { customTags } from './custom-tags';
+import { dynamicTags } from './dynamic-tags';
 
-// Combine all tag configurations
+// Focus on essential tags only for now
 const allTags = {
-	...textTags,
-	...semanticTags,
-	...mediaTags,
-	...interactiveTags,
-	...structuralTags,
-	...formTags,
-	...customTags,
+	...commonTags,
+	// Add a few more essential elements
+	'section': semanticTags.section,
+	'article': semanticTags.article,
+	'header': semanticTags.header,
+	'footer': semanticTags.footer,
+	'main': semanticTags.main,
+	'nav': semanticTags.nav,
+	'aside': semanticTags.aside,
+	'strong': textTags.strong,
+	'em': textTags.em,
+	'ul': semanticTags.ul,
+	'ol': semanticTags.ol,
+	'li': semanticTags.li,
+	'hr': {
+		label: 'Horizontal Rule',
+		category: 'layout',
+		contentType: null,
+		selfClosing: true
+	},
+	// Media tags
+	'img': mediaTags.img,
+	// Dynamic tags
+	'loop': dynamicTags.loop,
+	'if': dynamicTags.if,
+	'set': dynamicTags.set
 };
 
 /**
@@ -46,9 +63,21 @@ export function getFilteredTags(category = 'all') {
 		return Object.keys(allTags);
 	}
 
-	return Object.entries(allTags)
+	// Custom category uses text input, so return empty array
+	if (category === 'custom') {
+		return [];
+	}
+
+	const filtered = Object.entries(allTags)
 		.filter(([, config]) => config.category === category)
 		.map(([tagName]) => tagName);
+
+	// Add div to layout category as well (it's useful for both common and layout)
+	if (category === 'layout' && !filtered.includes('div')) {
+		filtered.unshift('div'); // Add div at the beginning
+	}
+
+	return filtered;
 }
 
 /**
@@ -203,11 +232,6 @@ export function validateTagContentType(tagName, contentType) {
 // Export all tag configurations for advanced use cases
 export {
 	allTags,
-	textTags,
-	semanticTags,
-	mediaTags,
-	interactiveTags,
-	structuralTags,
-	formTags,
-	customTags
+	commonTags,
+	dynamicTags
 };

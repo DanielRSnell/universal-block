@@ -6,7 +6,7 @@
  */
 
 import { __ } from '@wordpress/i18n';
-import { useState } from '@wordpress/element';
+import { useEffect } from '@wordpress/element';
 import {
 	SelectControl,
 	TextControl,
@@ -38,73 +38,119 @@ const CONTENT_TYPE_LABELS = {
 };
 
 export function TagControls({ attributes, setAttributes }) {
-	const { tagName, contentType, selfClosing } = attributes;
-	const [tagFilter, setTagFilter] = useState('all');
-	const [customTag, setCustomTag] = useState('');
-	const [showCustomInput, setShowCustomInput] = useState(false);
+	const { tagName, contentType, selfClosing, uiState } = attributes;
+	const tagFilter = uiState?.tagCategory || 'common';
+
+	// Initialize uiState if missing or incorrect - but don't override user selections
+	useEffect(() => {
+		// Only initialize if uiState is completely missing
+		if (!uiState) {
+			console.log('🔧 Initializing uiState for block');
+			// Determine correct category based on current tag
+			let correctCategory = 'common';
+
+			if (tagName === 'custom-element' || !getTagConfig(tagName)) {
+				correctCategory = 'custom';
+			} else {
+				const config = getTagConfig(tagName);
+				if (config?.category) {
+					correctCategory = config.category;
+				}
+			}
+
+			const newUiState = {
+				tagCategory: correctCategory,
+				selectedTagName: tagName,
+				selectedContentType: contentType
+			};
+			console.log('🔧 Setting initial uiState:', newUiState);
+
+			setAttributes({
+				uiState: newUiState
+			});
+		}
+	}, [tagName, contentType, uiState, setAttributes]);
+
+	// Update tag filter and save to attributes
+	const setTagFilter = (newCategory) => {
+		setAttributes({
+			uiState: {
+				...uiState,
+				tagCategory: newCategory
+			}
+		});
+	};
 
 	// Get current tag configuration
 	const tagConfig = getTagConfig(tagName);
-	const validation = validateTagContentType(tagName, contentType);
 
-	// Handle tag selection
+	// Simplified tag change handler
 	const handleTagChange = (newTag) => {
-		if (newTag === 'custom') {
-			setShowCustomInput(true);
-			return;
-		}
-
 		const config = getTagConfig(newTag);
 		const updates = { tagName: newTag };
 
-		// Auto-configure based on tag configuration
-		if (config) {
-			// Set content type
-			if (config.contentType) {
-				updates.contentType = config.contentType;
-			} else if (config.defaultContentType) {
-				updates.contentType = config.defaultContentType;
-			} else {
-				updates.contentType = getDefaultContentType(newTag);
+		// For custom elements, provide flexible defaults
+		if (tagFilter === 'custom') {
+			// Don't auto-set content type for custom elements, let user choose
+			// Only set default if there's no existing content type
+			if (!contentType) {
+				updates.contentType = 'text'; // Default to text, but user can change
 			}
-
-			// Set self-closing
-			updates.selfClosing = config.selfClosing;
-
-			console.log(`🏷️ Selected tag: ${newTag}`, { config, updates });
+			// Don't override existing content type for custom elements
+			updates.selfClosing = false; // Default to not self-closing for custom elements
 		} else {
-			// Fallback for unknown tags
-			updates.contentType = getDefaultContentType(newTag);
-			updates.selfClosing = false;
+			// Standard tag configuration
+			if (config) {
+				if (config.contentType !== undefined) {
+					// Handle null contentType for void elements
+					updates.contentType = config.contentType === null ? 'empty' : config.contentType;
+				} else if (config.defaultContentType) {
+					updates.contentType = config.defaultContentType;
+				}
+				updates.selfClosing = config.selfClosing;
+			} else {
+				// Safe defaults for unknown tags
+				updates.contentType = 'text';
+				updates.selfClosing = false;
+			}
 		}
 
+		// Update uiState to remember selections
+		updates.uiState = {
+			...uiState,
+			selectedTagName: newTag,
+			selectedContentType: updates.contentType || contentType
+		};
+
+		console.log(`🏷️ Switching to tag: ${newTag}`, updates);
 		setAttributes(updates);
-		setShowCustomInput(false);
-	};
-
-	// Handle custom tag input
-	const handleCustomTagSubmit = () => {
-		if (customTag.trim()) {
-			handleTagChange(customTag.toLowerCase().trim());
-			setCustomTag('');
-		}
 	};
 
 	// Handle content type change
 	const handleContentTypeChange = (newContentType) => {
-		setAttributes({ contentType: newContentType });
+		console.log(`📝 Content type changing from "${contentType}" to "${newContentType}"`);
+		const updates = {
+			contentType: newContentType,
+			uiState: {
+				...uiState,
+				selectedContentType: newContentType
+			}
+		};
+
+		// Clear content when switching to blocks type to prevent conflicts
+		if (newContentType === 'blocks') {
+			updates.content = '';
+			console.log('🧹 Clearing content attribute for blocks content type');
+		}
+
+		console.log('📝 Content type updates:', updates);
+		setAttributes(updates);
 	};
 
 	// Get tag options based on current filter
 	const tagOptions = getTagOptions(tagFilter);
 
-	// Add custom option
-	const allTagOptions = [
-		...tagOptions,
-		{ label: __('Custom tag...', 'universal-block'), value: 'custom' }
-	];
-
-	// Get content type options for current tag
+	// Get content type options for current tag (simplified)
 	const contentTypeOptions = getContentTypeOptions(tagName).map(type => ({
 		label: CONTENT_TYPE_LABELS[type] || type,
 		value: type
@@ -114,113 +160,55 @@ export function TagControls({ attributes, setAttributes }) {
 		<div className="tag-controls">
 			{/* Tag Filter */}
 			<SelectControl
-				label={__('Filter Tags', 'universal-block')}
+				label={__('Tag Category', 'universal-block')}
 				value={tagFilter}
 				options={getCategoryOptions()}
 				onChange={setTagFilter}
-				help={__('Filter available tags by category (does not affect block structure)', 'universal-block')}
+				help={__('Filter tags by category', 'universal-block')}
 			/>
 
-			{/* Tag Selection */}
-			{!showCustomInput ? (
+			{/* Tag Selection - show text input for custom, select for others */}
+			{tagFilter === 'custom' ? (
+				<TextControl
+					label={__('HTML Tag Name', 'universal-block')}
+					value={tagName}
+					onChange={handleTagChange}
+					placeholder={__('Enter tag name (e.g., span, custom-element)', 'universal-block')}
+					help={__('Enter any valid HTML tag name', 'universal-block')}
+				/>
+			) : (
 				<SelectControl
 					label={__('HTML Tag', 'universal-block')}
 					value={tagName}
-					options={allTagOptions}
+					options={tagOptions}
 					onChange={handleTagChange}
-					help={tagConfig?.description || __('Select an HTML tag for this element', 'universal-block')}
+					help={tagConfig?.description || __('Select an HTML tag', 'universal-block')}
 				/>
-			) : (
-				<Flex>
-					<FlexItem>
-						<TextControl
-							label={__('Custom Tag', 'universal-block')}
-							value={customTag}
-							onChange={setCustomTag}
-							placeholder={__('Enter tag name (e.g., my-component)', 'universal-block')}
-							help={__('Custom elements must contain a hyphen', 'universal-block')}
-						/>
-					</FlexItem>
-					<FlexItem>
-						<HStack style={{ marginTop: '28px' }}>
-							<Button
-								variant="primary"
-								size="small"
-								onClick={handleCustomTagSubmit}
-								disabled={!customTag.trim()}
-							>
-								{__('Apply', 'universal-block')}
-							</Button>
-							<Button
-								variant="secondary"
-								size="small"
-								onClick={() => {
-									setShowCustomInput(false);
-									setCustomTag('');
-								}}
-							>
-								{__('Cancel', 'universal-block')}
-							</Button>
-						</HStack>
-					</FlexItem>
-				</Flex>
 			)}
 
-			{/* Content Type Selection (if applicable) */}
-			{shouldShowContentTypeSelector(tagName) && (
+			{/* Content Type Selection - always show for custom elements, conditionally for others */}
+			{(tagFilter === 'custom' || shouldShowContentTypeSelector(tagName)) && (
 				<SelectControl
 					label={__('Content Type', 'universal-block')}
 					value={contentType}
-					options={contentTypeOptions}
+					options={tagFilter === 'custom' ? [
+						{ label: __('Text', 'universal-block'), value: 'text' },
+						{ label: __('Blocks', 'universal-block'), value: 'blocks' },
+						{ label: __('HTML', 'universal-block'), value: 'html' },
+						{ label: __('Empty', 'universal-block'), value: 'empty' }
+					] : contentTypeOptions}
 					onChange={handleContentTypeChange}
-					help={__('Choose what type of content this element should contain', 'universal-block')}
+					help={__('What type of content goes inside this element', 'universal-block')}
 				/>
 			)}
 
-			{/* Self-closing toggle (for advanced users) */}
-			{tagConfig && !tagConfig.contentType && (
-				<ToggleControl
-					label={__('Self-closing tag', 'universal-block')}
-					checked={selfClosing}
-					onChange={(value) => setAttributes({ selfClosing: value })}
-					help={__('Whether this element is self-closing (void element)', 'universal-block')}
-				/>
-			)}
-
-			{/* Validation Messages */}
-			{!validation.valid && validation.errors.length > 0 && (
-				<Notice status="error" isDismissible={false}>
-					<ul style={{ margin: 0, paddingLeft: '20px' }}>
-						{validation.errors.map((error, index) => (
-							<li key={index}>{error}</li>
-						))}
-					</ul>
-				</Notice>
-			)}
-
-			{validation.warnings.length > 0 && (
-				<Notice status="warning" isDismissible={false}>
-					<ul style={{ margin: 0, paddingLeft: '20px' }}>
-						{validation.warnings.map((warning, index) => (
-							<li key={index}>{warning}</li>
-						))}
-					</ul>
-				</Notice>
-			)}
-
-			{/* Tag Information */}
-			{tagConfig && tagConfig.validation?.recommendations && (
-				<Notice status="info" isDismissible={false}>
-					<strong>{__('Recommendations:', 'universal-block')}</strong>
-					<ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-						{Object.entries(tagConfig.validation.recommendations).map(([context, recommendations]) => (
-							recommendations.map((rec, index) => (
-								<li key={`${context}-${index}`}>{rec}</li>
-							))
-						))}
-					</ul>
-				</Notice>
-			)}
+			{/* Self-Closing Toggle - show for debugging and advanced users */}
+			<ToggleControl
+				label={__('Self-Closing Tag', 'universal-block')}
+				checked={selfClosing}
+				onChange={(value) => setAttributes({ selfClosing: value })}
+				help={__('Whether this tag is self-closing (e.g., <img />, <hr />)', 'universal-block')}
+			/>
 		</div>
 	);
 }

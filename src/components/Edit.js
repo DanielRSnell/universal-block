@@ -1,3 +1,4 @@
+import React from 'react';
 import { __ } from '@wordpress/i18n';
 import {
 	InspectorControls,
@@ -7,16 +8,24 @@ import {
 	useBlockProps,
 	useInnerBlocksProps
 } from '@wordpress/block-editor';
+import { rawHandler, createBlock } from '@wordpress/blocks';
+import { useSelect, useDispatch } from '@wordpress/data';
+import { useEffect } from '@wordpress/element';
 import {
 	PanelBody,
 	ToolbarGroup,
-	ToolbarDropdownMenu
+	ToolbarDropdownMenu,
+	Button
 } from '@wordpress/components';
 import { TagControls } from './TagControls';
 import { AttributesPanel } from './AttributesPanel';
 import { BlockNamePanel } from './BlockNamePanel';
 import { ClassesPanel } from './ClassesPanel';
+import { AceEditor } from './AceEditor';
+import { ImagePanel } from './ImagePanel';
 import { getTagConfig, getDefaultContentType } from '../config/tags';
+import { parseHTMLToBlocks } from '../utils/htmlToBlocks';
+import { parseBlocksToHTML } from '../utils/blocksToHtml';
 
 // Global clipboard for copy/paste functionality
 let universalBlockClipboard = {
@@ -36,7 +45,7 @@ const LEGACY_ELEMENT_TYPE_MAPPING = {
 	'container': { tagName: 'div', contentType: 'blocks' }
 };
 
-export default function Edit({ attributes, setAttributes }) {
+export default function Edit({ attributes, setAttributes, clientId }) {
 	const {
 		blockName,
 		elementType, // Legacy - will be migrated
@@ -45,40 +54,122 @@ export default function Edit({ attributes, setAttributes }) {
 		content,
 		selfClosing,
 		globalAttrs,
-		className
+		className,
+		uiState
 	} = attributes;
 
-	// Migration: Convert legacy elementType to new tag-based system
-	const migratedAttributes = (() => {
-		if (elementType && !contentType) {
-			const mapping = LEGACY_ELEMENT_TYPE_MAPPING[elementType];
-			if (mapping) {
-				console.log(`🔄 Migrating legacy elementType "${elementType}" to tag-based system`);
-				return {
+	// Get block editor functions for conversion
+	const { replaceBlocks } = useDispatch('core/block-editor');
+
+	// Get selected block ID and raw block data for debugging
+	const { selectedBlockId, rawBlockData } = useSelect((select) => {
+		const selectedId = select('core/block-editor').getSelectedBlockClientId();
+		const blockData = selectedId ? select('core/block-editor').getBlock(selectedId) : null;
+
+		return {
+			selectedBlockId: selectedId,
+			rawBlockData: blockData
+		};
+	}, []);
+
+	// Debug logging when this block is selected
+	useEffect(() => {
+		if (selectedBlockId === clientId && rawBlockData) {
+			console.group('🔍 Universal Block Debug - RAW Block Object');
+			console.log('📦 Client ID:', rawBlockData.clientId);
+			console.log('🔷 Block Name:', rawBlockData.name);
+			console.log('🆔 Is Valid:', rawBlockData.isValid);
+			console.log('📋 RAW ATTRIBUTES OBJECT:', rawBlockData.attributes);
+			console.log('🧱 Inner Blocks Count:', rawBlockData.innerBlocks?.length || 0);
+			if (rawBlockData.innerBlocks?.length > 0) {
+				console.log('🧱 Inner Blocks:', rawBlockData.innerBlocks);
+			}
+			console.log('🔍 COMPLETE RAW BLOCK OBJECT:', rawBlockData);
+			console.groupEnd();
+		}
+	}, [selectedBlockId, clientId, rawBlockData]);
+
+	// Convert HTML to inner blocks
+	const convertToInnerBlocks = () => {
+		if (!content || currentContentType !== 'html') return;
+
+		try {
+			const parsedBlocks = parseHTMLToBlocks(content);
+
+			if (parsedBlocks.length > 0) {
+				// Change current block to blocks content type and add the parsed blocks as inner blocks
+				setAttributes({
+					contentType: 'blocks',
+					content: '' // Clear HTML content since we're converting to blocks
+				});
+
+				// Replace this block with a blocks-type version containing the parsed blocks
+				const newBlock = createBlock('universal/element', {
+					...attributes,
+					contentType: 'blocks',
+					content: ''
+				}, parsedBlocks);
+
+				replaceBlocks(clientId, newBlock);
+			}
+		} catch (error) {
+			console.error('Failed to convert HTML to blocks:', error);
+		}
+	};
+
+	// Convert inner blocks to HTML
+	const convertToHTML = () => {
+		if (currentContentType !== 'blocks') return;
+
+		// Use the rawBlockData we already have from the existing useSelect
+		if (!rawBlockData || !rawBlockData.innerBlocks || rawBlockData.innerBlocks.length === 0) {
+			return;
+		}
+
+		try {
+			// Convert inner blocks to HTML
+			const htmlContent = parseBlocksToHTML(rawBlockData.innerBlocks);
+
+			if (htmlContent) {
+				// Change to HTML content type and set the generated HTML
+				setAttributes({
+					contentType: 'html',
+					content: htmlContent
+				});
+			}
+		} catch (error) {
+			console.error('Failed to convert blocks to HTML:', error);
+		}
+	};
+
+	// Simple migration: only migrate once when needed, don't break existing blocks
+	const currentTagName = tagName || 'div';
+	const currentContentType = contentType || getDefaultContentType(currentTagName);
+	const currentSelfClosing = selfClosing || false;
+
+	// Debug the contentType issue
+	console.log('🔍 ContentType Debug:', {
+		rawContentType: contentType,
+		currentContentType: currentContentType,
+		defaultWouldBe: getDefaultContentType(currentTagName),
+		tagName: currentTagName
+	});
+
+	// Only migrate if we have legacy elementType but no contentType (one-time migration)
+	if (elementType && !contentType) {
+		const mapping = LEGACY_ELEMENT_TYPE_MAPPING[elementType];
+		if (mapping) {
+			// Do migration asynchronously to avoid render conflicts
+			setTimeout(() => {
+				setAttributes({
 					tagName: tagName || mapping.tagName,
 					contentType: mapping.contentType,
-					selfClosing: elementType === 'image' || elementType === 'rule'
-				};
-			}
+					selfClosing: elementType === 'image' || elementType === 'rule',
+					elementType: undefined // Remove legacy attribute
+				});
+			}, 0);
 		}
-		return {
-			tagName: tagName || 'div',
-			contentType: contentType || getDefaultContentType(tagName || 'div'),
-			selfClosing: selfClosing || false
-		};
-	})();
-
-	// Apply migration if needed
-	if (elementType && !contentType) {
-		setAttributes({
-			...migratedAttributes,
-			elementType: undefined // Remove legacy attribute
-		});
 	}
-
-	const currentTagName = migratedAttributes.tagName;
-	const currentContentType = migratedAttributes.contentType;
-	const currentSelfClosing = migratedAttributes.selfClosing;
 
 	// Get element-specific attributes from globalAttrs
 	const src = globalAttrs?.src || '';
@@ -86,13 +177,13 @@ export default function Edit({ attributes, setAttributes }) {
 
 	const blockProps = useBlockProps();
 
-	// For blocks content type, use useInnerBlocksProps to eliminate extra wrapper
+	// Always call useInnerBlocksProps to avoid conditional hook calls
+	const { children, ...innerBlocksProps } = useInnerBlocksProps(blockProps, {
+		renderAppender: InnerBlocks.DefaultBlockAppender
+	});
+
+	// Determine if we should use blocks content
 	const isBlocksContent = currentContentType === 'blocks';
-	const { children, ...innerBlocksProps } = isBlocksContent
-		? useInnerBlocksProps(blockProps, {
-			renderAppender: InnerBlocks.DefaultBlockAppender
-		})
-		: { children: null };
 
 	const renderContentByType = () => {
 		switch (currentContentType) {
@@ -110,49 +201,29 @@ export default function Edit({ attributes, setAttributes }) {
 				return children;
 
 			case 'html':
-				if (!content) {
-					return (
-						<div
-							style={{
-								background: '#f0f0f0',
-								border: '1px dashed #ccc',
-								borderRadius: '4px',
-								padding: '40px 20px',
-								textAlign: 'center',
-								color: '#666',
-								minHeight: '120px',
-								display: 'flex',
-								alignItems: 'center',
-								justifyContent: 'center',
-								flexDirection: 'column'
-							}}
-						>
-							<div style={{ fontSize: '16px', marginBottom: '8px' }}>📝</div>
-							<div>{__('No HTML content', 'universal-block')}</div>
-							<div style={{ fontSize: '12px', marginTop: '4px' }}>
-								{__('Add HTML content in the sidebar', 'universal-block')}
-							</div>
-						</div>
-					);
-				}
-
-				// For SVG tags, combine globalAttrs to create proper SVG
-				if (currentTagName === 'svg') {
-					const svgAttrs = Object.entries(globalAttrs || {})
-						.map(([key, value]) => `${key}="${value}"`)
-						.join(' ');
-					const fullSvgContent = `<svg ${svgAttrs}>${content}</svg>`;
-					return (
-						<div
-							dangerouslySetInnerHTML={{ __html: fullSvgContent }}
-						/>
-					);
-				}
-
+				// Empty HTML content placeholder (HTML with content is handled in main return)
 				return (
 					<div
-						dangerouslySetInnerHTML={{ __html: content }}
-					/>
+						style={{
+							background: '#f0f0f0',
+							border: '1px dashed #ccc',
+							borderRadius: '4px',
+							padding: '40px 20px',
+							textAlign: 'center',
+							color: '#666',
+							minHeight: '120px',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							flexDirection: 'column'
+						}}
+					>
+						<div style={{ fontSize: '16px', marginBottom: '8px' }}>📝</div>
+						<div>{__('No HTML content', 'universal-block')}</div>
+						<div style={{ fontSize: '12px', marginTop: '4px' }}>
+							{__('Add HTML content in the sidebar', 'universal-block')}
+						</div>
+					</div>
 				);
 
 			case 'empty':
@@ -306,11 +377,291 @@ export default function Edit({ attributes, setAttributes }) {
 		},
 	];
 
-	// Use innerBlocksProps for blocks content, blockProps for others
-	const wrapperProps = isBlocksContent ? innerBlocksProps : blockProps;
+	// For blocks content, use innerBlocksProps directly
+	if (isBlocksContent) {
+		return (
+			<div {...innerBlocksProps}>
+				<BlockControls>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon="admin-tools"
+							label={__('Copy/Paste Styles', 'universal-block')}
+							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+				</BlockControls>
 
+				<InspectorControls>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+						<BlockNamePanel
+							blockName={blockName}
+							elementType={elementType}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('CSS Classes', 'universal-block')} initialOpen={false}>
+						<ClassesPanel
+							className={className}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('Tag Settings', 'universal-block')}>
+						<TagControls
+							attributes={{
+								tagName: currentTagName,
+								contentType: currentContentType,
+								selfClosing: currentSelfClosing,
+								...attributes
+							}}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					{/* Blocks Conversion Panel - only show for blocks content type */}
+					{currentContentType === 'blocks' && (
+						<PanelBody title={__('Blocks Conversion', 'universal-block')} initialOpen={false}>
+							{rawBlockData && rawBlockData.innerBlocks && rawBlockData.innerBlocks.length > 0 && (
+								<div style={{ marginBottom: '12px' }}>
+									<Button
+										variant="secondary"
+										size="small"
+										onClick={convertToHTML}
+										style={{
+											width: '100%',
+											justifyContent: 'center'
+										}}
+									>
+										{__('🔄 Convert to HTML', 'universal-block')}
+									</Button>
+								</div>
+							)}
+
+							<div style={{ fontSize: '12px', color: '#757575', fontStyle: 'italic' }}>
+								{__('Convert inner blocks back to HTML content for further editing.', 'universal-block')}
+							</div>
+						</PanelBody>
+					)}
+
+					{/* Image Settings Panel - only show for img tags */}
+					{currentTagName === 'img' && (
+						<ImagePanel
+							globalAttrs={globalAttrs}
+							setAttributes={setAttributes}
+						/>
+					)}
+
+					<AttributesPanel
+						globalAttrs={globalAttrs}
+						setAttributes={setAttributes}
+					/>
+				</InspectorControls>
+
+				{children}
+			</div>
+		);
+	}
+
+	// For HTML content, merge blockProps into the HTML element itself
+	if (currentContentType === 'html' && content) {
+		return (
+			<>
+				<BlockControls>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon="admin-tools"
+							label={__('Copy/Paste Styles', 'universal-block')}
+							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+				</BlockControls>
+
+				<InspectorControls>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+						<BlockNamePanel
+							blockName={blockName}
+							elementType={elementType}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('CSS Classes', 'universal-block')} initialOpen={false}>
+						<ClassesPanel
+							className={className}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('Tag Settings', 'universal-block')}>
+						<TagControls
+							attributes={{
+								tagName: currentTagName,
+								contentType: currentContentType,
+								selfClosing: currentSelfClosing,
+								...attributes
+							}}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={true}>
+						<div style={{ marginBottom: '8px' }}>
+							<label style={{
+								display: 'block',
+								marginBottom: '4px',
+								fontSize: '11px',
+								fontWeight: '500',
+								textTransform: 'uppercase',
+								color: '#1e1e1e'
+							}}>
+								{__('HTML Content', 'universal-block')}
+							</label>
+							<AceEditor
+								value={content || ''}
+								onChange={(newValue) => setAttributes({ content: newValue })}
+								placeholder={__('Enter HTML content...', 'universal-block')}
+								rows={8}
+							/>
+						</div>
+
+						{/* Conversion button */}
+						{content && (
+							<div style={{ marginBottom: '12px' }}>
+								<Button
+									variant="secondary"
+									size="small"
+									onClick={convertToInnerBlocks}
+									style={{
+										width: '100%',
+										justifyContent: 'center'
+									}}
+								>
+									{__('🔄 Convert to Inner Blocks', 'universal-block')}
+								</Button>
+							</div>
+						)}
+
+						<div style={{ fontSize: '12px', color: '#757575', fontStyle: 'italic' }}>
+							{__('Enter raw HTML content with Emmet support. Use the convert button to turn HTML into editable blocks.', 'universal-block')}
+						</div>
+					</PanelBody>
+
+					{/* Image Settings Panel - only show for img tags */}
+					{currentTagName === 'img' && (
+						<ImagePanel
+							globalAttrs={globalAttrs}
+							setAttributes={setAttributes}
+						/>
+					)}
+
+					<AttributesPanel
+						globalAttrs={globalAttrs}
+						setAttributes={setAttributes}
+					/>
+				</InspectorControls>
+
+				{React.createElement(currentTagName, {
+					...blockProps,
+					dangerouslySetInnerHTML: { __html: content }
+				})}
+			</>
+		);
+	}
+
+	// For image tags, merge blockProps into the image element itself
+	if (currentTagName === 'img' && currentContentType === 'empty') {
+		return (
+			<>
+				<BlockControls>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon="admin-tools"
+							label={__('Copy/Paste Styles', 'universal-block')}
+							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+				</BlockControls>
+
+				<InspectorControls>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+						<BlockNamePanel
+							blockName={blockName}
+							elementType={elementType}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('CSS Classes', 'universal-block')} initialOpen={false}>
+						<ClassesPanel
+							className={className}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('Tag Settings', 'universal-block')}>
+						<TagControls
+							attributes={{
+								tagName: currentTagName,
+								contentType: currentContentType,
+								selfClosing: currentSelfClosing,
+								...attributes
+							}}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					{/* Image Settings Panel - only show for img tags */}
+					{currentTagName === 'img' && (
+						<ImagePanel
+							globalAttrs={globalAttrs}
+							setAttributes={setAttributes}
+						/>
+					)}
+
+					<AttributesPanel
+						globalAttrs={globalAttrs}
+						setAttributes={setAttributes}
+					/>
+				</InspectorControls>
+
+				{src ? (
+					<img
+						{...blockProps}
+						src={src}
+						alt={alt || ''}
+					/>
+				) : (
+					<div
+						{...blockProps}
+						style={{
+							background: '#f0f0f0',
+							border: '1px dashed #ccc',
+							borderRadius: '4px',
+							padding: '40px 20px',
+							textAlign: 'center',
+							color: '#666',
+							minHeight: '120px',
+							display: 'flex',
+							alignItems: 'center',
+							justifyContent: 'center',
+							flexDirection: 'column'
+						}}
+					>
+						<div style={{ fontSize: '16px', marginBottom: '8px' }}>📷</div>
+						<div>{__('No image selected', 'universal-block')}</div>
+						<div style={{ fontSize: '12px', marginTop: '4px' }}>
+							{__('Configure image in the sidebar', 'universal-block')}
+						</div>
+					</div>
+				)}
+			</>
+		);
+	}
+
+	// For non-blocks content types, use blockProps
 	return (
-		<div {...wrapperProps}>
+		<div {...blockProps}>
 			<BlockControls>
 				<ToolbarGroup>
 					<ToolbarDropdownMenu
@@ -349,6 +700,59 @@ export default function Edit({ attributes, setAttributes }) {
 					/>
 				</PanelBody>
 
+				{/* HTML Content Panel - only show for HTML content type */}
+				{currentContentType === 'html' && (
+					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={true}>
+						<div style={{ marginBottom: '8px' }}>
+							<label style={{
+								display: 'block',
+								marginBottom: '4px',
+								fontSize: '11px',
+								fontWeight: '500',
+								textTransform: 'uppercase',
+								color: '#1e1e1e'
+							}}>
+								{__('HTML Content', 'universal-block')}
+							</label>
+							<AceEditor
+								value={content || ''}
+								onChange={(newValue) => setAttributes({ content: newValue })}
+								placeholder={__('Enter HTML content...', 'universal-block')}
+								rows={8}
+							/>
+						</div>
+
+						{/* Conversion button */}
+						{content && (
+							<div style={{ marginBottom: '12px' }}>
+								<Button
+									variant="secondary"
+									size="small"
+									onClick={convertToInnerBlocks}
+									style={{
+										width: '100%',
+										justifyContent: 'center'
+									}}
+								>
+									{__('🔄 Convert to Inner Blocks', 'universal-block')}
+								</Button>
+							</div>
+						)}
+
+						<div style={{ fontSize: '12px', color: '#757575', fontStyle: 'italic' }}>
+							{__('Enter raw HTML content with Emmet support. Use the convert button to turn HTML into editable blocks.', 'universal-block')}
+						</div>
+					</PanelBody>
+				)}
+
+				{/* Image Settings Panel - only show for img tags */}
+				{currentTagName === 'img' && (
+					<ImagePanel
+						globalAttrs={globalAttrs}
+						setAttributes={setAttributes}
+					/>
+				)}
+
 				<AttributesPanel
 					globalAttrs={globalAttrs}
 					setAttributes={setAttributes}
@@ -358,4 +762,12 @@ export default function Edit({ attributes, setAttributes }) {
 			{renderContentByType()}
 		</div>
 	);
+}
+
+// Expose parsers on window for external use
+if (typeof window !== 'undefined') {
+	window.UniversalBlockParsers = {
+		parseHTMLToBlocks,
+		parseBlocksToHTML
+	};
 }

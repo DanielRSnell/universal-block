@@ -1,10 +1,10 @@
 import { InnerBlocks } from '@wordpress/block-editor';
 
 export default function Save({ attributes }) {
-	const { elementType } = attributes;
+	const { elementType, contentType } = attributes;
 
-	// For container elements, we need to save the InnerBlocks content
-	if (elementType === 'container') {
+	// For blocks content type, we need to save the InnerBlocks content
+	if (contentType === 'blocks' || elementType === 'container') {
 		return <InnerBlocks.Content />;
 	}
 

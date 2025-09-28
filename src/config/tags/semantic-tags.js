@@ -8,20 +8,69 @@ import { createTagConfig, createSemanticTag, TAG_CATEGORIES, CONTENT_TYPES } fro
 
 export const semanticTags = {
 	// Main document structure
-	'main': createSemanticTag('main', 'Main Content', 'Primary content area of the document - use only once per page'),
+	'main': createTagConfig({
+		label: 'Main Content',
+		category: 'layout',
+		description: 'Primary content area',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
-	'article': createSemanticTag('article', 'Article', 'Independent, self-contained content (blog post, news article)'),
+	'article': createTagConfig({
+		label: 'Article',
+		category: 'layout',
+		description: 'Independent content piece',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
-	'section': createSemanticTag('section', 'Section', 'Thematic grouping of content with a heading'),
+	'section': createTagConfig({
+		label: 'Section',
+		category: 'layout',
+		description: 'Thematic content grouping',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
-	'aside': createSemanticTag('aside', 'Aside', 'Content indirectly related to main content (sidebar, pull quotes)'),
+	'aside': createTagConfig({
+		label: 'Aside',
+		category: 'layout',
+		description: 'Sidebar content',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
 	// Navigation and headers/footers
-	'header': createSemanticTag('header', 'Header', 'Introductory content or navigation aids'),
+	'header': createTagConfig({
+		label: 'Header',
+		category: 'layout',
+		description: 'Header section',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
-	'footer': createSemanticTag('footer', 'Footer', 'Footer content for its nearest sectioning element'),
+	'footer': createTagConfig({
+		label: 'Footer',
+		category: 'layout',
+		description: 'Footer section',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
-	'nav': createSemanticTag('nav', 'Navigation', 'Section containing navigation links'),
+	'nav': createTagConfig({
+		label: 'Navigation',
+		category: 'layout',
+		description: 'Navigation section',
+		contentTypeOptions: [CONTENT_TYPES.BLOCKS, CONTENT_TYPES.TEXT],
+		defaultContentType: CONTENT_TYPES.BLOCKS,
+		selfClosing: false
+	}),
 
 	// Content grouping
 	'div': createTagConfig({

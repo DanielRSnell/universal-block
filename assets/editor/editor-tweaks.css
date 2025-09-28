@@ -7,3 +7,8 @@
 .interface-interface-skeleton__body {
 	margin-right: 60px;
 }
+
+/* Ensure more menu dropdown appears above other elements */
+.components-popover.more-menu-dropdown__content {
+	z-index: 1000001;
+}

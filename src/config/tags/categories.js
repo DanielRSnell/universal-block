@@ -7,7 +7,7 @@
 import { __ } from '@wordpress/i18n';
 
 /**
- * Tag category definitions for filtering and organization
+ * Simplified tag category definitions for filtering and organization
  */
 export const TAG_CATEGORIES = {
 	// All tags (special filter)
@@ -19,74 +19,64 @@ export const TAG_CATEGORIES = {
 		color: '#666666'
 	},
 
-	// Text content and formatting
+	// Most common elements
+	common: {
+		value: 'common',
+		label: __('Common', 'universal-block'),
+		description: __('Most commonly used HTML elements', 'universal-block'),
+		icon: 'star-filled',
+		color: '#0073aa',
+		examples: ['div', 'p', 'h1', 'span', 'a', 'img']
+	},
+
+	// Text and content
 	text: {
 		value: 'text',
-		label: __('Text & Content', 'universal-block'),
-		description: __('Text elements, headings, and formatting tags', 'universal-block'),
+		label: __('Text', 'universal-block'),
+		description: __('Text elements and formatting', 'universal-block'),
 		icon: 'editor-textcolor',
-		color: '#0073aa',
+		color: '#00a32a',
 		examples: ['p', 'h1', 'span', 'strong', 'em']
 	},
 
-	// Semantic structure elements
-	semantic: {
-		value: 'semantic',
-		label: __('Semantic Structure', 'universal-block'),
-		description: __('Semantic HTML5 elements that provide meaning and structure', 'universal-block'),
+	// Structure and layout
+	layout: {
+		value: 'layout',
+		label: __('Layout', 'universal-block'),
+		description: __('Structure and layout elements', 'universal-block'),
 		icon: 'layout',
-		color: '#00a32a',
-		examples: ['article', 'section', 'header', 'footer', 'nav']
-	},
-
-	// Interactive elements
-	interactive: {
-		value: 'interactive',
-		label: __('Interactive', 'universal-block'),
-		description: __('Interactive elements like links, buttons, and controls', 'universal-block'),
-		icon: 'admin-links',
 		color: '#f56e28',
-		examples: ['a', 'button', 'details', 'summary']
+		examples: ['div', 'section', 'header', 'footer']
 	},
 
-	// Media elements
+	// Media and interactive
 	media: {
 		value: 'media',
-		label: __('Media', 'universal-block'),
-		description: __('Images, videos, audio, and other media elements', 'universal-block'),
+		label: __('Media & Interactive', 'universal-block'),
+		description: __('Images, links, and interactive elements', 'universal-block'),
 		icon: 'format-image',
 		color: '#e1a948',
-		examples: ['img', 'video', 'audio', 'svg', 'canvas']
+		examples: ['img', 'a', 'button', 'video']
 	},
 
-	// Form elements
-	form: {
-		value: 'form',
-		label: __('Form Elements', 'universal-block'),
-		description: __('Form controls and input elements', 'universal-block'),
-		icon: 'feedback',
-		color: '#826eb4',
-		examples: ['input', 'textarea', 'select', 'form', 'label']
-	},
-
-	// Structural and layout
-	structural: {
-		value: 'structural',
-		label: __('Structural', 'universal-block'),
-		description: __('Tables, lists, and other structural elements', 'universal-block'),
-		icon: 'editor-table',
-		color: '#ca4a1f',
-		examples: ['table', 'ul', 'ol', 'li', 'div']
-	},
-
-	// Custom elements and web components
+	// Custom elements
 	custom: {
 		value: 'custom',
-		label: __('Custom Elements', 'universal-block'),
-		description: __('Web components, custom elements, and framework-specific tags', 'universal-block'),
-		icon: 'admin-tools',
-		color: '#d63638',
-		examples: ['web-component', 'iframe', 'script', 'custom-element']
+		label: __('Custom Element', 'universal-block'),
+		description: __('Enter any HTML tag name with flexible content options', 'universal-block'),
+		icon: 'admin-generic',
+		color: '#8b5cf6',
+		examples: ['custom-element', 'web-component', 'any-tag']
+	},
+
+	// Dynamic control structures
+	dynamic: {
+		value: 'dynamic',
+		label: __('Dynamic', 'universal-block'),
+		description: __('Control structures and dynamic content elements', 'universal-block'),
+		icon: 'controls-repeat',
+		color: '#dc2626',
+		examples: ['loop', 'if', 'set']
 	}
 };
 

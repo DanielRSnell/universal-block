@@ -14,27 +14,42 @@ const ELEMENT_TYPE_NAMES = {
 	container: __('Container', 'universal-block')
 };
 
-registerBlockType('universal-block/element', {
+registerBlockType('universal/element', {
 	icon: 'editor-code',
 	attributes: {
 		blockName: { type: 'string', default: '' },
-		elementType: { type: 'string', default: 'text' },
+		elementType: { type: 'string', default: 'text' }, // Legacy
 		tagName: { type: 'string', default: 'p' },
+		contentType: { type: 'string' }, // New system - no default to avoid override
 		globalAttrs: { type: 'object', default: {} },
-		content: { type: 'string' },
-		selfClosing: { type: 'boolean', default: false }
+		content: { type: 'string', default: '' },
+		selfClosing: { type: 'boolean', default: false },
+		uiState: {
+			type: 'object',
+			default: {
+				tagCategory: 'common',
+				selectedTagName: '',
+				selectedContentType: ''
+			}
+		}
 	},
 	edit: Edit,
 	save: Save,
 	transforms,
 	__experimentalLabel: (attributes, { context }) => {
-		const { blockName, elementType } = attributes;
+		const { blockName, tagName, elementType } = attributes;
 
-		// Use custom block name if set, otherwise use element type name
+		// Use custom block name if set
 		if (blockName) {
 			return blockName;
 		}
 
+		// Use tag name (new system) - capitalize the tag name
+		if (tagName) {
+			return tagName.charAt(0).toUpperCase() + tagName.slice(1);
+		}
+
+		// Fallback to legacy element type names for backward compatibility
 		return ELEMENT_TYPE_NAMES[elementType] || __('Universal Element', 'universal-block');
 	}
 });
