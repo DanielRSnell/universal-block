@@ -111,7 +111,7 @@ export function TagControls({ attributes, setAttributes }) {
 	}));
 
 	return (
-		<div className=\"tag-controls\">
+		<div className="tag-controls">
 			{/* Tag Filter */}
 			<SelectControl
 				label={__('Filter Tags', 'universal-block')}
@@ -144,16 +144,16 @@ export function TagControls({ attributes, setAttributes }) {
 					<FlexItem>
 						<HStack style={{ marginTop: '28px' }}>
 							<Button
-								variant=\"primary\"
-								size=\"small\"
+								variant="primary"
+								size="small"
 								onClick={handleCustomTagSubmit}
 								disabled={!customTag.trim()}
 							>
 								{__('Apply', 'universal-block')}
 							</Button>
 							<Button
-								variant=\"secondary\"
-								size=\"small\"
+								variant="secondary"
+								size="small"
 								onClick={() => {
 									setShowCustomInput(false);
 									setCustomTag('');
@@ -189,7 +189,7 @@ export function TagControls({ attributes, setAttributes }) {
 
 			{/* Validation Messages */}
 			{!validation.valid && validation.errors.length > 0 && (
-				<Notice status=\"error\" isDismissible={false}>
+				<Notice status="error" isDismissible={false}>
 					<ul style={{ margin: 0, paddingLeft: '20px' }}>
 						{validation.errors.map((error, index) => (
 							<li key={index}>{error}</li>
@@ -199,7 +199,7 @@ export function TagControls({ attributes, setAttributes }) {
 			)}
 
 			{validation.warnings.length > 0 && (
-				<Notice status=\"warning\" isDismissible={false}>
+				<Notice status="warning" isDismissible={false}>
 					<ul style={{ margin: 0, paddingLeft: '20px' }}>
 						{validation.warnings.map((warning, index) => (
 							<li key={index}>{warning}</li>
@@ -210,7 +210,7 @@ export function TagControls({ attributes, setAttributes }) {
 
 			{/* Tag Information */}
 			{tagConfig && tagConfig.validation?.recommendations && (
-				<Notice status=\"info\" isDismissible={false}>
+				<Notice status="info" isDismissible={false}>
 					<strong>{__('Recommendations:', 'universal-block')}</strong>
 					<ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
 						{Object.entries(tagConfig.validation.recommendations).map(([context, recommendations]) => (
