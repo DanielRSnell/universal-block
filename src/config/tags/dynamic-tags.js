@@ -7,7 +7,6 @@
 
 import { __ } from '@wordpress/i18n';
 import { createTagConfig } from './base-tag';
-import { TAG_CATEGORIES } from './categories';
 
 /**
  * Dynamic control structure tags
@@ -15,98 +14,81 @@ import { TAG_CATEGORIES } from './categories';
 export const dynamicTags = {
 	'loop': createTagConfig({
 		label: __('Loop', 'universal-block'),
-		category: TAG_CATEGORIES.dynamic,
-		description: __('Repeats content based on dynamic data or specified iterations', 'universal-block'),
+		category: 'dynamic',
+		description: __('Repeats content based on dynamic data using raw Twig syntax', 'universal-block'),
 		contentType: 'blocks',
 		selfClosing: false,
 		customAttributes: {
 			source: {
 				type: 'string',
-				label: __('Data Source', 'universal-block'),
-				description: __('Source of data to loop through (e.g., posts, products, custom field)', 'universal-block'),
-				placeholder: 'posts'
-			},
-			limit: {
-				type: 'number',
-				label: __('Limit', 'universal-block'),
-				description: __('Maximum number of iterations', 'universal-block'),
-				placeholder: '10'
-			},
-			offset: {
-				type: 'number',
-				label: __('Offset', 'universal-block'),
-				description: __('Number of items to skip', 'universal-block'),
-				placeholder: '0'
+				label: __('Source (Raw Twig)', 'universal-block'),
+				description: __('Raw Twig expression for data source (e.g., post.meta(\'gallery\'), posts({post_type: \'product\'}))', 'universal-block'),
+				placeholder: 'post.meta(\'team_members\')'
 			}
 		},
 		examples: [
 			{
-				title: __('Post Loop', 'universal-block'),
-				attributes: { source: 'posts', limit: 5 },
-				description: __('Loop through 5 latest posts', 'universal-block')
+				title: __('ACF Repeater', 'universal-block'),
+				attributes: { source: 'post.meta(\'team_members\')' },
+				description: __('Loop through ACF repeater field', 'universal-block')
 			},
 			{
-				title: __('Product Loop', 'universal-block'),
-				attributes: { source: 'products', limit: 8 },
-				description: __('Loop through 8 products', 'universal-block')
+				title: __('WordPress Query', 'universal-block'),
+				attributes: { source: 'posts({post_type: \'product\', posts_per_page: 6})' },
+				description: __('Loop through WordPress posts query', 'universal-block')
+			},
+			{
+				title: __('Simple Array', 'universal-block'),
+				attributes: { source: 'site.menu.items' },
+				description: __('Loop through menu items', 'universal-block')
 			}
 		],
-		notes: __('Loop functionality will be implemented in a future update. This is a placeholder tag.', 'universal-block')
+		notes: __('Translates to {% for item in source %}...{% endfor %}. Use loop.index, loop.first, loop.last for iteration context.', 'universal-block')
 	}),
 
 	'if': createTagConfig({
 		label: __('If', 'universal-block'),
-		category: TAG_CATEGORIES.dynamic,
-		description: __('Conditionally displays content based on specified conditions', 'universal-block'),
+		category: 'dynamic',
+		description: __('Conditionally displays content based on raw Twig expressions', 'universal-block'),
 		contentType: 'blocks',
 		selfClosing: false,
 		customAttributes: {
-			condition: {
+			source: {
 				type: 'string',
-				label: __('Condition', 'universal-block'),
-				description: __('Condition to evaluate (e.g., user_logged_in, has_featured_image)', 'universal-block'),
-				placeholder: 'user_logged_in'
-			},
-			operator: {
-				type: 'select',
-				label: __('Operator', 'universal-block'),
-				description: __('Comparison operator', 'universal-block'),
-				options: [
-					{ label: 'Equals', value: 'equals' },
-					{ label: 'Not Equals', value: 'not_equals' },
-					{ label: 'Greater Than', value: 'greater_than' },
-					{ label: 'Less Than', value: 'less_than' },
-					{ label: 'Contains', value: 'contains' },
-					{ label: 'Exists', value: 'exists' }
-				],
-				default: 'exists'
-			},
-			value: {
-				type: 'string',
-				label: __('Compare Value', 'universal-block'),
-				description: __('Value to compare against (optional for exists/not exists)', 'universal-block'),
-				placeholder: ''
+				label: __('Condition (Raw Twig)', 'universal-block'),
+				description: __('Raw Twig conditional expression (e.g., user.ID > 0, loop.index == 0, post.meta(\'featured\'))', 'universal-block'),
+				placeholder: 'user.ID > 0'
 			}
 		},
 		examples: [
 			{
-				title: __('Logged In Users Only', 'universal-block'),
-				attributes: { condition: 'user_logged_in', operator: 'exists' },
+				title: __('User Authentication', 'universal-block'),
+				attributes: { source: 'user.ID > 0' },
 				description: __('Show content only to logged-in users', 'universal-block')
 			},
 			{
-				title: __('Featured Image Check', 'universal-block'),
-				attributes: { condition: 'has_featured_image', operator: 'exists' },
-				description: __('Show content only if post has featured image', 'universal-block')
+				title: __('Loop Position', 'universal-block'),
+				attributes: { source: 'loop.index == 0' },
+				description: __('Show content only for first item in loop', 'universal-block')
+			},
+			{
+				title: __('Featured Content', 'universal-block'),
+				attributes: { source: 'post.meta(\'featured\')' },
+				description: __('Show content only if post is featured', 'universal-block')
+			},
+			{
+				title: __('Complex Condition', 'universal-block'),
+				attributes: { source: 'user.ID > 0 and user.has_cap(\'edit_posts\')' },
+				description: __('Show content for users who can edit posts', 'universal-block')
 			}
 		],
-		notes: __('Conditional logic will be implemented in a future update. This is a placeholder tag.', 'universal-block')
+		notes: __('Translates to {% if source %}...{% endif %}. Use multiple if tags instead of if/else for simplicity.', 'universal-block')
 	}),
 
 	'set': createTagConfig({
 		label: __('Set', 'universal-block'),
-		category: TAG_CATEGORIES.dynamic,
-		description: __('Sets or modifies variables for use in other dynamic elements', 'universal-block'),
+		category: 'dynamic',
+		description: __('Sets variables using raw Twig expressions for use in templates', 'universal-block'),
 		contentType: 'empty',
 		selfClosing: true,
 		customAttributes: {
@@ -118,48 +100,34 @@ export const dynamicTags = {
 			},
 			value: {
 				type: 'string',
-				label: __('Value', 'universal-block'),
-				description: __('Value to assign to the variable', 'universal-block'),
-				placeholder: 'Hello World'
-			},
-			type: {
-				type: 'select',
-				label: __('Variable Type', 'universal-block'),
-				description: __('Type of variable', 'universal-block'),
-				options: [
-					{ label: 'String', value: 'string' },
-					{ label: 'Number', value: 'number' },
-					{ label: 'Boolean', value: 'boolean' },
-					{ label: 'Array', value: 'array' },
-					{ label: 'Object', value: 'object' }
-				],
-				default: 'string'
-			},
-			scope: {
-				type: 'select',
-				label: __('Scope', 'universal-block'),
-				description: __('Variable scope', 'universal-block'),
-				options: [
-					{ label: 'Local', value: 'local' },
-					{ label: 'Global', value: 'global' },
-					{ label: 'Session', value: 'session' }
-				],
-				default: 'local'
+				label: __('Value (Raw Twig)', 'universal-block'),
+				description: __('Raw Twig expression for variable value (e.g., post.title, users|length, \'Hello World\')', 'universal-block'),
+				placeholder: 'post.meta(\'custom_field\')'
 			}
 		},
 		examples: [
 			{
-				title: __('Set User Name', 'universal-block'),
-				attributes: { variable: 'current_user_name', value: 'get_current_user_name()', type: 'string' },
-				description: __('Store current user name in variable', 'universal-block')
+				title: __('User Count', 'universal-block'),
+				attributes: { variable: 'user_count', value: 'users|length' },
+				description: __('Store number of users in variable', 'universal-block')
 			},
 			{
-				title: __('Set Counter', 'universal-block'),
-				attributes: { variable: 'post_count', value: '0', type: 'number' },
-				description: __('Initialize a counter variable', 'universal-block')
+				title: __('Featured Status', 'universal-block'),
+				attributes: { variable: 'is_featured', value: 'post.meta(\'featured\')' },
+				description: __('Store featured status in variable', 'universal-block')
+			},
+			{
+				title: __('Current Date', 'universal-block'),
+				attributes: { variable: 'today', value: '\'now\'|date(\'Y-m-d\')' },
+				description: __('Store formatted current date', 'universal-block')
+			},
+			{
+				title: __('Complex Expression', 'universal-block'),
+				attributes: { variable: 'greeting', value: 'user.ID > 0 ? \'Hello \' ~ user.display_name : \'Welcome Guest\'' },
+				description: __('Conditional greeting based on user status', 'universal-block')
 			}
 		],
-		notes: __('Variable management will be implemented in a future update. This is a placeholder tag.', 'universal-block')
+		notes: __('Translates to {% set variable = value %}. Variables can then be used throughout the template with {{ variable }}.', 'universal-block')
 	})
 };
 

@@ -7,7 +7,7 @@
 import { useEffect, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 
-export function AceEditor({ value, onChange, placeholder, rows = 8, ...props }) {
+export function AceEditor({ value, onChange, placeholder, rows = 8, mode = 'html', theme = 'github', className = '', ...props }) {
 	const editorRef = useRef(null);
 	const aceEditorRef = useRef(null);
 
@@ -19,8 +19,16 @@ export function AceEditor({ value, onChange, placeholder, rows = 8, ...props }) 
 		aceEditorRef.current = editor;
 
 		// Configure editor
-		editor.setTheme('ace/theme/github');
-		editor.session.setMode('ace/mode/html');
+		editor.setTheme(`ace/theme/${theme}`);
+
+		// Set mode based on prop, with fallback for twig mode
+		const editorMode = mode === 'twig' ? 'ace/mode/twig' : `ace/mode/${mode}`;
+		try {
+			editor.session.setMode(editorMode);
+		} catch (e) {
+			// Fallback to text mode if mode not available
+			editor.session.setMode('ace/mode/text');
+		}
 		editor.setOptions({
 			fontSize: 13,
 			fontFamily: 'monospace',
@@ -136,15 +144,15 @@ export function AceEditor({ value, onChange, placeholder, rows = 8, ...props }) 
 	}, [value]);
 
 	return (
-		<div>
+		<div className={className}>
 			<div
 				ref={editorRef}
 				style={{
 					width: '100%',
-					height: `${rows * 20}px`,
-					border: '1px solid #949494',
-					borderRadius: '0',
-					backgroundColor: '#fff'
+					height: `${Math.max(rows * 20, 120)}px`,
+					border: 'none',
+					borderRadius: '4px',
+					backgroundColor: theme === 'monokai' ? '#272822' : '#fff'
 				}}
 				{...props}
 			/>

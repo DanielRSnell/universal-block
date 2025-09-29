@@ -28,6 +28,7 @@ import {
 } from '../config/tags';
 
 import { getCategoryOptions } from '../config/tags/categories';
+import { DynamicTagControls } from './DynamicTagControls';
 
 // Content type labels for UI
 const CONTENT_TYPE_LABELS = {
@@ -209,6 +210,15 @@ export function TagControls({ attributes, setAttributes }) {
 				onChange={(value) => setAttributes({ selfClosing: value })}
 				help={__('Whether this tag is self-closing (e.g., <img />, <hr />)', 'universal-block')}
 			/>
+
+			{/* Dynamic Tag Controls - show only for dynamic tags */}
+			{['loop', 'if', 'set'].includes(tagName) && (
+				<DynamicTagControls
+					tagName={tagName}
+					attributes={attributes}
+					setAttributes={setAttributes}
+				/>
+			)}
 		</div>
 	);
 }

@@ -76,7 +76,10 @@ $allowed_tags = array(
 	'ruby', 'rb', 'rt', 'rp', 'template', 'slot',
 
 	// Custom elements (allow any tag with hyphen for web components)
-	'iframe', 'script', 'style', 'noscript', 'wbr'
+	'iframe', 'script', 'style', 'noscript', 'wbr',
+
+	// Dynamic tags
+	'set', 'if', 'loop'
 );
 
 // Allow custom elements (must contain hyphen for web components)
@@ -129,6 +132,8 @@ $wrapper_attributes = get_block_wrapper_attributes( $additional_attrs );
 
 // Determine what content to use based on contentType
 $final_content = '';
+$use_timber_for_all = class_exists( '\Timber\Timber' );
+
 switch ( $content_type ) {
 	case 'blocks':
 		// Use InnerBlocks content (passed as $content parameter)
@@ -172,6 +177,44 @@ switch ( $content_type ) {
 		$final_content = '';
 		break;
 }
+
+// Handle dynamic tags specially - they need their attributes converted to HTML format
+// for the dynamic tag parser to recognize them
+if ( in_array( $tag_name, array( 'set', 'if', 'loop' ), true ) ) {
+	// Build the dynamic tag HTML with proper attributes
+	$dynamic_tag_html = '<' . $tag_name;
+
+	// Add attributes from globalAttrs for dynamic tags
+	foreach ( $global_attrs as $attr_name => $attr_value ) {
+		if ( ! empty( $attr_name ) && ! empty( $attr_value ) ) {
+			$dynamic_tag_html .= ' ' . esc_attr( $attr_name ) . '="' . esc_attr( $attr_value ) . '"';
+		}
+	}
+
+	if ( $self_closing || $tag_name === 'set' ) {
+		$dynamic_tag_html .= ' />';
+		// Debug output
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$dynamic_tag_html = '<!-- DEBUG: Self-closing dynamic tag -->' . $dynamic_tag_html . '<!-- /DEBUG -->';
+		}
+	} else {
+		$dynamic_tag_html .= '>' . $final_content . '</' . $tag_name . '>';
+		// Debug output
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$dynamic_tag_html = '<!-- DEBUG: Container dynamic tag -->' . $dynamic_tag_html . '<!-- /DEBUG -->';
+		}
+	}
+
+	// Return the dynamic tag HTML - it will be processed by the_content filter
+	echo $dynamic_tag_html;
+	return;
+}
+
+// Note: Twig compilation and dynamic tag processing now happens globally
+// in the_content filter at priority 8, before blocks are processed.
+// This ensures all content is processed consistently across the site.
+
+// Note: Set tags are now handled by the dynamic tag handler above
 
 // Render the element
 if ( $self_closing || in_array( $tag_name, array( 'img', 'hr' ), true ) ) {

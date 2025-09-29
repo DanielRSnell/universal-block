@@ -47,13 +47,13 @@ export const CONTENT_TYPES = {
  * Tag Categories
  */
 export const TAG_CATEGORIES = {
-	TEXT: 'text',           // Text content and formatting
-	SEMANTIC: 'semantic',   // Semantic structure elements
-	INTERACTIVE: 'interactive', // Interactive elements (links, buttons, etc.)
-	MEDIA: 'media',         // Media elements (images, video, audio)
-	FORM: 'form',           // Form elements and controls
-	STRUCTURAL: 'structural', // Layout and structure
-	CUSTOM: 'custom'        // Custom elements and web components
+	all: 'all',
+	common: 'common',
+	text: 'text',           // Text content and formatting
+	layout: 'layout',       // Layout and structure elements
+	media: 'media',         // Media elements (images, video, audio)
+	custom: 'custom',       // Custom elements and web components
+	dynamic: 'dynamic'      // Dynamic control structures (loop, if, set)
 };
 
 /**

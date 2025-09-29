@@ -18,6 +18,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
+// Load Composer dependencies.
+require_once __DIR__ . '/vendor/autoload.php';
+
+// Initialize Timber.
+if ( ! class_exists( '\Timber\Timber' ) ) {
+	\Timber\Timber::init();
+}
+
 define( 'UNIVERSAL_BLOCK_VERSION', '0.2.1' );
 define( 'UNIVERSAL_BLOCK_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'UNIVERSAL_BLOCK_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -100,8 +108,86 @@ add_action( 'enqueue_block_editor_assets', 'universal_block_enqueue_block_editor
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/blocks/class-universal-element.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/admin/class-admin.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/editor/class-editor-tweaks.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/parser/class-dynamic-tag-parser.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/parser/class-simple-twig-processor.php';
 
 /**
  * Initialize editor tweaks.
  */
 EditorTweaks::init();
+
+/**
+ * Process Twig and dynamic tags in content after blocks are rendered.
+ * Priority 11 runs after do_blocks() at priority 9.
+ */
+add_filter( 'the_content', function( $content ) {
+	// Only process if Timber is available
+	if ( ! class_exists( '\Timber\Timber' ) ) {
+		return $content;
+	}
+
+	// Debug output
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		$content = '<!-- DEBUG: the_content filter processing -->' . $content;
+	}
+
+	// Get Timber context
+	$context = \Timber\Timber::context();
+
+	// First, process dynamic tags if present (including set)
+	if ( Universal_Block_Dynamic_Tag_Parser::has_dynamic_tags( $content ) ) {
+		// Debug output
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$content = '<!-- DEBUG: Found dynamic tags -->' . $content;
+			// Log the raw content to see what we're working with
+			error_log( 'Dynamic Tag Parser: Raw content before processing: ' . substr( $content, 0, 500 ) );
+		}
+
+		// Validate tag structure first
+		$validation = Universal_Block_Dynamic_Tag_Parser::validate_structure( $content );
+
+		if ( $validation['valid'] ) {
+			// Parse dynamic tags to Twig syntax
+			$content = Universal_Block_Dynamic_Tag_Parser::parse( $content );
+
+			// Debug output after parsing
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Dynamic Tag Parser: Content after parsing: ' . substr( $content, 0, 500 ) );
+			}
+		} else {
+			// Show validation errors in development
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				$error_messages = implode( ', ', $validation['errors'] );
+				$content = '<!-- Dynamic tag validation errors: ' . esc_html( $error_messages ) . ' -->' . $content;
+			}
+		}
+	} else {
+		// Debug output
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$content = '<!-- DEBUG: No dynamic tags found -->' . $content;
+		}
+	}
+
+	// Then, compile any Twig syntax (including from dynamic tags and raw Twig)
+	if ( preg_match( '/\{\{.*?\}\}|\{%.*?%\}/', $content ) ) {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$content = '<!-- DEBUG: Found Twig syntax, compiling -->' . $content;
+			error_log( 'Timber: About to compile content with length: ' . strlen( $content ) );
+		}
+
+		try {
+			$content = \Timber\Timber::compile_string( $content, $context );
+
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Timber: Successfully compiled, result length: ' . strlen( $content ) );
+			}
+		} catch ( Exception $e ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'Timber compilation error: ' . $e->getMessage() );
+				$content = '<!-- Timber compilation error: ' . esc_html( $e->getMessage() ) . ' -->' . $content;
+			}
+		}
+	}
+
+	return $content;
+}, 11 );
