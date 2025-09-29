@@ -10,7 +10,7 @@ import {
 } from '@wordpress/block-editor';
 import { rawHandler, createBlock } from '@wordpress/blocks';
 import { useSelect, useDispatch } from '@wordpress/data';
-import { useEffect } from '@wordpress/element';
+import { useEffect, useState } from '@wordpress/element';
 import {
 	PanelBody,
 	ToolbarGroup,
@@ -23,6 +23,7 @@ import { BlockNamePanel } from './BlockNamePanel';
 import { ClassesPanel } from './ClassesPanel';
 import { AceEditor } from './AceEditor';
 import { ImagePanel } from './ImagePanel';
+import { DynamicPreviewPanel, ContextDebugPanel, PreviewPerformancePanel } from './PreviewControls';
 import { getTagConfig, getDefaultContentType } from '../config/tags';
 import { parseHTMLToBlocks } from '../utils/htmlToBlocks';
 import { parseBlocksToHTML } from '../utils/blocksToHtml';
@@ -57,6 +58,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		className,
 		uiState
 	} = attributes;
+
+	// Preview state
+	const [isLivePreview, setIsLivePreview] = useState(false);
+	const [previewHtml, setPreviewHtml] = useState('');
 
 	// Get block editor functions for conversion
 	const { replaceBlocks } = useDispatch('core/block-editor');
@@ -757,6 +762,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					globalAttrs={globalAttrs}
 					setAttributes={setAttributes}
 				/>
+
+				{/* Dynamic Preview Controls */}
+				<DynamicPreviewPanel
+					blockId={clientId}
+					isEnabled={isLivePreview}
+					onToggle={setIsLivePreview}
+					onPreviewUpdate={setPreviewHtml}
+				/>
+
+				{/* Debug Panels */}
+				<ContextDebugPanel />
+				<PreviewPerformancePanel />
 			</InspectorControls>
 
 			{renderContentByType()}

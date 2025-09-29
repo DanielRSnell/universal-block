@@ -91,6 +91,14 @@ function universal_block_enqueue_block_editor_assets() {
 		UNIVERSAL_BLOCK_VERSION
 	);
 
+	// Pass preview data to the editor
+	wp_localize_script( 'universal-block-editor', 'ubPreviewData', array(
+		'apiUrl' => rest_url( 'universal-block/v1/' ),
+		'nonce' => wp_create_nonce( 'wp_rest' ),
+		'pageData' => apply_filters( 'universal_block_page_data', array() ),
+		'debugMode' => defined( 'WP_DEBUG' ) && WP_DEBUG
+	) );
+
 	if ( file_exists( UNIVERSAL_BLOCK_PLUGIN_DIR . 'build/index.css' ) ) {
 		wp_enqueue_style(
 			'universal-block-editor-style',
@@ -110,6 +118,7 @@ require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/admin/class-admin.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/editor/class-editor-tweaks.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/parser/class-dynamic-tag-parser.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/parser/class-simple-twig-processor.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-api.php';
 
 /**
  * Initialize editor tweaks.
