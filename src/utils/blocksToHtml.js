@@ -2,7 +2,10 @@
  * Blocks to HTML Parser
  *
  * Converts Universal Block structures back to HTML
+ * Mirrors the logic used in htmlToBlocks.js for consistent roundtrip conversion
  */
+
+import { getTagConfig } from '../config/tags';
 
 /**
  * Convert an array of blocks to HTML string
@@ -53,6 +56,11 @@ function blockToHTML(block) {
 	});
 
 	// Handle different content types
+	// This mirrors the content type detection in htmlToBlocks.js:
+	// - 'text': Simple text content (hasOnlyTextContent)
+	// - 'blocks': Nested block structures (hasChildElements)
+	// - 'html': Mixed/complex content (fallback)
+	// - 'empty': Self-closing/void elements
 	let innerContent = '';
 
 	switch (contentType) {
@@ -75,7 +83,17 @@ function blockToHTML(block) {
 	}
 
 	// Generate HTML
-	if (selfClosing || isVoidElement(tagName)) {
+	// Mirror the selfClosing detection logic from htmlToBlocks.js:
+	// 1. Check tag config first (handles custom elements like 'set', 'loop', etc.)
+	// 2. Fall back to block's selfClosing attribute
+	// 3. Finally check if it's a standard void element
+	// This ensures custom elements and dynamic tags work correctly
+	const config = getTagConfig(tagName);
+	const shouldBeSelfClosing = config?.selfClosing !== undefined
+		? config.selfClosing
+		: (selfClosing || isVoidElement(tagName));
+
+	if (shouldBeSelfClosing) {
 		return `<${tagName}${attributesString} />`;
 	} else {
 		return `<${tagName}${attributesString}>${innerContent}</${tagName}>`;
@@ -84,6 +102,8 @@ function blockToHTML(block) {
 
 /**
  * Check if a tag name is a void element
+ * NOTE: This list MUST match the voidElements array in htmlToBlocks.js
+ * to ensure consistent roundtrip conversion
  * @param {string} tagName - HTML tag name
  * @returns {boolean}
  */

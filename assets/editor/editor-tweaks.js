@@ -66,214 +66,26 @@
 
     /**
      * Parse HTML content into universal blocks
+     * Delegates to the global parser from window.UniversalBlockParsers
      */
     function parseHtmlToBlocks(htmlContent) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlContent, 'text/html');
-        const blocks = [];
+        console.log('🔄 parseHtmlToBlocks called with:', htmlContent?.substring(0, 100) + '...');
 
-        function processNode(node) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent.trim();
-                if (text) {
-                    return {
-                        name: 'universal/element',
-                        attributes: {
-                            elementType: 'text',
-                            tagName: 'p',
-                            content: text,
-                            globalAttrs: {}
-                        }
-                    };
-                }
-                return null;
-            }
-
-            if (node.nodeType === Node.ELEMENT_NODE) {
-                const tagName = node.tagName.toLowerCase();
-                let elementType;
-                const globalAttrs = {};
-                let content = '';
-
-                // Extract all attributes
-                let className = '';
-                Array.from(node.attributes).forEach(attr => {
-                    if (attr.name === 'class') {
-                        // Handle class separately as className at block level
-                        className = attr.value;
-                    } else {
-                        // Other attributes go in globalAttrs
-                        globalAttrs[attr.name] = attr.value;
-                    }
-                });
-
-                // Determine element type and content type based on tag and content
-                let contentType;
-
-                switch (tagName) {
-                    case 'h1':
-                    case 'h2':
-                    case 'h3':
-                    case 'h4':
-                    case 'h5':
-                    case 'h6':
-                        elementType = 'heading';
-                        contentType = 'text';
-                        content = node.textContent;
-                        break;
-                    case 'a':
-                        elementType = 'link';
-                        contentType = 'text';
-                        content = node.textContent.trim().replace(/\s+/g, ' ');
-                        break;
-                    case 'img':
-                        elementType = 'image';
-                        contentType = 'empty';
-                        break;
-                    case 'hr':
-                        elementType = 'rule';
-                        contentType = 'empty';
-                        break;
-                    case 'svg':
-                        elementType = 'svg';
-                        contentType = 'html';
-                        // For SVGs, we want to capture the inner content without encoding
-                        content = node.innerHTML;
-                        break;
-                    case 'div':
-                    case 'section':
-                    case 'article':
-                    case 'header':
-                    case 'footer':
-                    case 'main':
-                    case 'aside':
-                    case 'nav':
-                        elementType = 'container';
-                        contentType = 'blocks';
-                        break;
-                    case 'p':
-                        elementType = 'text';
-                        contentType = 'text';
-                        content = node.textContent.trim().replace(/\s+/g, ' ');
-                        break;
-                    case 'span':
-                    case 'strong':
-                    case 'b':
-                    case 'em':
-                    case 'i':
-                    case 'code':
-                    case 'small':
-                    case 'mark':
-                    case 'del':
-                    case 'ins':
-                    case 'sub':
-                    case 'sup':
-                    case 'time':
-                    case 'abbr':
-                    case 'cite':
-                    case 'kbd':
-                    case 'samp':
-                    case 'var':
-                        elementType = 'text';
-                        contentType = 'text';
-                        content = node.textContent.trim().replace(/\s+/g, ' ');
-                        break;
-                    default:
-                        // Use custom elementType for undefined elements
-                        elementType = 'custom';
-
-                        // Determine contentType based on node content
-                        if (node.children.length > 0) {
-                            // Check if it has mixed content (text + elements)
-                            const hasTextNodes = Array.from(node.childNodes).some(child =>
-                                child.nodeType === Node.TEXT_NODE && child.textContent.trim()
-                            );
-                            const hasElementNodes = node.children.length > 0;
-
-                            if (hasTextNodes && hasElementNodes) {
-                                // Mixed content - use html to preserve structure
-                                contentType = 'html';
-                                content = node.innerHTML;
-                            } else if (hasElementNodes) {
-                                // Only child elements - use blocks
-                                contentType = 'blocks';
-                            } else {
-                                // Only text - use text
-                                contentType = 'text';
-                                content = node.textContent.trim().replace(/\s+/g, ' ');
-                            }
-                        } else {
-                            // No children - determine by text content
-                            const textContent = node.textContent.trim();
-                            if (textContent) {
-                                contentType = 'text';
-                                content = textContent.replace(/\s+/g, ' ');
-                            } else {
-                                contentType = 'empty';
-                            }
-                        }
-                }
-
-                const block = {
-                    name: 'universal/element',
-                    attributes: {
-                        elementType,
-                        tagName,
-                        contentType,
-                        globalAttrs,
-                        selfClosing: ['img', 'hr', 'br', 'input'].includes(tagName)
-                    }
-                };
-
-                // Set up uiState for custom elements
-                if (elementType === 'custom') {
-                    block.attributes.uiState = {
-                        tagCategory: 'custom',
-                        selectedTagName: tagName,
-                        selectedContentType: contentType
-                    };
-                }
-
-                // Add className if it exists
-                if (className) {
-                    block.attributes.className = className;
-                }
-
-                if (content) {
-                    block.attributes.content = content;
-                }
-
-                // Handle elements with blocks contentType (containers and custom elements)
-                if ((elementType === 'container' || (elementType === 'custom' && contentType === 'blocks')) && node.children.length > 0) {
-                    const innerBlocks = [];
-                    Array.from(node.children).forEach(child => {
-                        const childBlock = processNode(child);
-                        if (childBlock) {
-                            innerBlocks.push(childBlock);
-                        }
-                    });
-                    if (innerBlocks.length > 0) {
-                        block.innerBlocks = innerBlocks;
-                    }
-                }
-
-                return block;
-            }
-
-            return null;
+        // Use the global parser from src/utils/htmlToBlocks.js
+        if (window.UniversalBlockParsers && window.UniversalBlockParsers.parseHTMLToBlocks) {
+            console.log('✅ Using global parser from window.UniversalBlockParsers.parseHTMLToBlocks 2');
+            console.log(`${htmlContent}`)
+            const blocks = window.UniversalBlockParsers.parseHTMLToBlocks(htmlContent);
+            console.log('📦 Parser returned', blocks?.length || 0, 'blocks:', blocks);
+            return blocks;
         }
 
-        // Process all children of body (or the whole document if no body)
-        const container = doc.body || doc.documentElement;
-        Array.from(container.children).forEach(child => {
-            const block = processNode(child);
-            if (block) {
-                blocks.push(block);
-            }
-        });
-
-        return blocks;
+        // Fallback if global parser not loaded (shouldn't happen in normal operation)
+        console.error('❌ Global parser not available! This is a loading order issue.');
+        console.error('window.UniversalBlockParsers:', window.UniversalBlockParsers);
+        return [];
     }
+
 
     /**
      * Insert block markup into the Gutenberg editor

@@ -17,9 +17,23 @@ export function parseHTMLToBlocks(html) {
 		return [];
 	}
 
+	// CRITICAL FIX: DOMParser doesn't handle self-closing custom tags correctly
+	// It treats <set /> as an opening tag, causing all subsequent content to be nested inside it
+	// We need to convert self-closing custom tags to proper empty tags: <set></set>
+	const processedHtml = html.replace(/<(\w+)([^>]*?)\/>/g, (match, tagName, attrs) => {
+		// Check if this is a custom tag that should be self-closing
+		const config = getTagConfig(tagName.toLowerCase());
+		if (config?.selfClosing === true) {
+			// Convert <tag /> to <tag></tag>
+			return `<${tagName}${attrs}></${tagName}>`;
+		}
+		// Keep void HTML elements as self-closing
+		return match;
+	});
+
 	// Create a temporary container to parse HTML
 	const parser = new DOMParser();
-	const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+	const doc = parser.parseFromString(`<div>${processedHtml}</div>`, 'text/html');
 	const container = doc.body.firstChild;
 
 	// Convert child nodes to blocks
@@ -79,11 +93,18 @@ function nodeToBlock(node) {
 		let content = '';
 		let innerBlocks = [];
 
-		// Check if element is self-closing/void
+		// Check tag config FIRST for self-closing behavior
+		// This is critical for custom elements like <set>, <loop>, <if>
+		// that may have attributes but no content
 		const voidElements = ['img', 'br', 'hr', 'input', 'meta', 'link', 'area', 'base', 'col', 'embed', 'source', 'track', 'wbr'];
-		const isSelfClosing = voidElements.includes(tagName);
+		const isVoidElement = voidElements.includes(tagName);
 
-		if (isSelfClosing) {
+		// IMPORTANT: Check config.selfClosing FIRST before any content detection
+		// If tag config explicitly says it's self-closing, skip all content detection
+		if (config?.selfClosing === true) {
+			contentType = 'empty';
+		} else if (isVoidElement) {
+			// Standard void elements
 			contentType = 'empty';
 		} else if (hasOnlyTextContent(node)) {
 			// Element contains only text content
@@ -108,7 +129,7 @@ function nodeToBlock(node) {
 
 		// Use config defaults if available, otherwise use determined values
 		const finalContentType = config?.contentType || contentType;
-		const finalSelfClosing = config?.selfClosing !== undefined ? config.selfClosing : isSelfClosing;
+		const finalSelfClosing = config?.selfClosing !== undefined ? config.selfClosing : isVoidElement;
 
 		// Create the block
 		const blockAttributes = {

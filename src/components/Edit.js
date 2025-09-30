@@ -16,7 +16,8 @@ import {
 	ToolbarGroup,
 	ToolbarDropdownMenu,
 	ToolbarButton,
-	Button
+	Button,
+	TextControl
 } from '@wordpress/components';
 import { TagControls } from './TagControls';
 import { AttributesPanel } from './AttributesPanel';
@@ -24,7 +25,6 @@ import { BlockNamePanel } from './BlockNamePanel';
 import { ClassesPanel } from './ClassesPanel';
 import { AceEditor } from './AceEditor';
 import { ImagePanel } from './ImagePanel';
-import { DynamicPreviewPanel, ContextDebugPanel, PreviewPerformancePanel } from './PreviewControls';
 import DynamicProcessingPanel from './DynamicProcessingPanel';
 import { getTagConfig, getDefaultContentType, getTagOptions, getContentTypeOptions } from '../config/tags';
 import { getCategoryOptions } from '../config/tags/categories';
@@ -64,8 +64,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	} = attributes;
 
 	// Preview state
-	const [isLivePreview, setIsLivePreview] = useState(false);
-	const [previewHtml, setPreviewHtml] = useState('');
 	const [dynamicProcessedContent, setDynamicProcessedContent] = useState(null);
 
 	// Get block editor functions for conversion
@@ -419,6 +417,46 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		}
 	};
 
+	const copyHTML = () => {
+		// Get the current block data including inner blocks
+		if (!rawBlockData) {
+			console.warn('No block data available');
+			return;
+		}
+
+		try {
+			// Convert the current block and all its inner blocks to HTML
+			const htmlOutput = parseBlocksToHTML([rawBlockData]);
+
+			if (htmlOutput) {
+				// Copy to clipboard
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(htmlOutput)
+						.then(() => {
+							console.log('HTML copied to clipboard');
+							// Could add a toast notification here
+						})
+						.catch((err) => {
+							console.error('Failed to copy HTML:', err);
+						});
+				} else {
+					// Fallback for older browsers
+					const textarea = document.createElement('textarea');
+					textarea.value = htmlOutput;
+					textarea.style.position = 'fixed';
+					textarea.style.opacity = '0';
+					document.body.appendChild(textarea);
+					textarea.select();
+					document.execCommand('copy');
+					document.body.removeChild(textarea);
+					console.log('HTML copied to clipboard (fallback)');
+				}
+			}
+		} catch (error) {
+			console.error('Failed to convert block to HTML:', error);
+		}
+	};
+
 	// Toolbar dropdown controls
 	const copyPasteControls = [
 		{
@@ -435,6 +473,11 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 			title: __('Copy Classes & Attributes', 'universal-block'),
 			icon: 'admin-tools',
 			onClick: copyClassesAndAttributes,
+		},
+		{
+			title: __('Copy HTML', 'universal-block'),
+			icon: 'editor-code',
+			onClick: copyHTML,
 		},
 		{
 			title: __('Paste Classes', 'universal-block'),
@@ -1131,6 +1174,19 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					/>
 				</PanelBody>
 
+				{/* Text Content Panel - only show for text content type */}
+				{currentContentType === 'text' && (
+					<PanelBody title={__('Text Content', 'universal-block')} initialOpen={false}>
+						<TextControl
+							label={__('Content', 'universal-block')}
+							value={content || ''}
+							onChange={(newValue) => setAttributes({ content: newValue })}
+							placeholder={__('Enter text content...', 'universal-block')}
+							help={__('Edit the text content. You can also edit directly in the block.', 'universal-block')}
+						/>
+					</PanelBody>
+				)}
+
 				{/* HTML Content Panel - only show for HTML content type */}
 				{currentContentType === 'html' && (
 					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={false}>
@@ -1196,66 +1252,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					clientId={clientId}
 				/>
 
-				{/* Dynamic Preview Controls */}
-				<DynamicPreviewPanel
-					blockId={clientId}
-					isEnabled={isLivePreview}
-					onToggle={setIsLivePreview}
-					onPreviewUpdate={setPreviewHtml}
-				/>
-
-				{/* Debug Panels */}
-				<ContextDebugPanel />
-				<PreviewPerformancePanel />
-
-				{/* Custom Advanced Panels in Settings Tab */}
-				<PanelBody title={__('🔧 Advanced Settings', 'universal-block')} initialOpen={false}>
-					<p>{__('Advanced configuration options for the universal element.', 'universal-block')}</p>
-
-					<hr />
-
-					<h4>{__('Element Information', 'universal-block')}</h4>
-					<p><strong>{__('Element Type:', 'universal-block')}</strong> {elementType || 'undefined'}</p>
-					<p><strong>{__('Tag Name:', 'universal-block')}</strong> {tagName}</p>
-					<p><strong>{__('Content Type:', 'universal-block')}</strong> {contentType}</p>
-
-					{Object.keys(globalAttrs).length > 0 && (
-						<>
-							<h4>{__('Global Attributes:', 'universal-block')}</h4>
-							<pre style={{fontSize: '12px', background: '#f0f0f0', padding: '8px', borderRadius: '4px'}}>
-								{JSON.stringify(globalAttrs, null, 2)}
-							</pre>
-						</>
-					)}
-				</PanelBody>
-
-				<PanelBody title={__('👨‍💻 Developer Tools', 'universal-block')} initialOpen={false}>
-					<p>{__('Tools for developers and advanced users.', 'universal-block')}</p>
-
-					{/* Block ID */}
-					<p><strong>{__('Block ID:', 'universal-block')}</strong></p>
-					<code style={{fontSize: '11px', background: '#f0f0f0', padding: '4px', borderRadius: '2px'}}>
-						{clientId}
-					</code>
-
-					{/* Raw Attributes */}
-					<hr />
-					<h4>{__('Raw Block Attributes:', 'universal-block')}</h4>
-					<pre style={{fontSize: '10px', background: '#f0f0f0', padding: '8px', borderRadius: '4px', maxHeight: '200px', overflow: 'auto'}}>
-						{JSON.stringify({
-							blockName,
-							elementType,
-							tagName,
-							contentType,
-							content,
-							className,
-							globalAttrs,
-							selfClosing,
-							isDynamic,
-							uiState
-						}, null, 2)}
-					</pre>
-				</PanelBody>
 			</InspectorControls>
 
 

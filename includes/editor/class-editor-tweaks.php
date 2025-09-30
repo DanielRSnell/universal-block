@@ -95,11 +95,14 @@ class EditorTweaks {
 
 		// Enqueue JavaScript if it exists
 		if ( file_exists( $js_path ) ) {
+			// Use file modification time for cache busting in development
+			$version = defined( 'WP_DEBUG' ) && WP_DEBUG ? filemtime( $js_path ) : UNIVERSAL_BLOCK_VERSION;
+
 			wp_enqueue_script(
 				'universal-block-editor-tweaks-js',
 				$js_file,
 				[ 'wp-blocks', 'wp-editor', 'wp-element', 'wp-dom-ready', 'lucide-icons' ],
-				UNIVERSAL_BLOCK_VERSION,
+				$version,
 				true
 			);
 		}

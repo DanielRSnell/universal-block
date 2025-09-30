@@ -87,10 +87,27 @@ The preview API ([includes/api/class-preview-api.php](includes/api/class-preview
 - [AceEditor.js](src/components/AceEditor.js): HTML editor with Emmet support
 
 **Utilities:**
-- [htmlToBlocks.js](src/utils/htmlToBlocks.js): Converts HTML to Gutenberg blocks
-- [blocksToHtml.js](src/utils/blocksToHtml.js): Converts blocks back to HTML
+- [htmlToBlocks.js](src/utils/htmlToBlocks.js): Converts HTML to Gutenberg blocks (see [docs/parsers](docs/parsers/))
+- [blocksToHtml.js](src/utils/blocksToHtml.js): Converts blocks back to HTML (see [docs/parsers](docs/parsers/))
 - [ContextAnalyzer.js](src/utils/ContextAnalyzer.js): Analyzes available Twig context
 - [PreviewManager.js](src/utils/PreviewManager.js): Manages dynamic preview state
+
+### Parser System
+
+The plugin includes a bidirectional parsing system for 100% consistent HTML ↔ Block conversion:
+
+- **HTML to Blocks Parser**: [src/utils/htmlToBlocks.js](src/utils/htmlToBlocks.js) - Converts HTML markup to block structures
+- **Blocks to HTML Parser**: [src/utils/blocksToHtml.js](src/utils/blocksToHtml.js) - Converts block structures back to HTML
+- **Documentation**: [docs/parsers/](docs/parsers/) - Comprehensive parser documentation
+  - [Parser Overview](docs/parsers/README.md) - System overview and roundtrip consistency
+  - [HTML to Blocks](docs/parsers/html-to-blocks.md) - Forward conversion details
+  - [Blocks to HTML](docs/parsers/blocks-to-html.md) - Reverse conversion details
+
+**Key Features:**
+- Structure preservation: Exact DOM hierarchy maintained
+- Attribute preservation: All attributes preserved with proper escaping
+- Custom element support: Dynamic tags (`<set>`, `<loop>`, `<if>`) handled correctly
+- Roundtrip guarantee: HTML → Blocks → HTML produces structurally identical output
 
 ## Important Implementation Details
 
