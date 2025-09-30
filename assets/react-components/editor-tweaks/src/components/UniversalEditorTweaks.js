@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, animate } from 'framer-motion';
-import MonacoEditor from './MonacoEditor';
+import AceEditor from './AceEditor';
 import RemixIcon from './RemixIcon';
 import usePreferencesStore from '../store/usePreferencesStore';
 
@@ -122,7 +122,7 @@ function QuickAddButton({ elementType, tagName, remixIcon, tooltip, onClick }) {
       const { dispatch, select } = wp.data;
 
       // Step 1: Create a basic Universal Block
-      const newBlock = wp.blocks.createBlock('universal-block/element', {
+      const newBlock = wp.blocks.createBlock('universal/element', {
         elementType: 'text', // Start with text as default
         tagName: 'p',
         content: '',
@@ -897,18 +897,44 @@ function HTMLImportDrawer({ isOpen, onClose }) {
       return;
     }
 
-    if (typeof window.parseHTMLToBlocks === 'function') {
-      const blockMarkup = window.parseHTMLToBlocks(htmlContent);
-      if (blockMarkup && typeof window.universalInsertBlock === 'function') {
-        const success = window.universalInsertBlock(blockMarkup);
-        if (success) {
-          setHtmlContent('');
-          onClose();
-          console.log('🎯 HTML converted and inserted successfully');
+    try {
+      if (typeof window.parseHtmlToBlocks === 'function') {
+        const blocks = window.parseHtmlToBlocks(htmlContent);
+
+        if (blocks && blocks.length > 0) {
+          if (typeof window.generateBlockMarkup === 'function') {
+            const blockMarkup = window.generateBlockMarkup(blocks);
+            console.log('🔍 Generated block markup:', blockMarkup);
+
+            if (typeof window.insertBlockMarkupIntoEditor === 'function') {
+              const success = window.insertBlockMarkupIntoEditor(blockMarkup);
+
+              if (success) {
+                setHtmlContent('');
+                onClose();
+                console.log('🎯 HTML converted and inserted successfully');
+              } else {
+                alert(__('Failed to insert blocks into editor. Please try again.', 'universal-block'));
+              }
+            } else {
+              console.error('insertBlockMarkupIntoEditor function not available');
+              alert(__('Block insertion function not available', 'universal-block'));
+            }
+          } else {
+            console.error('generateBlockMarkup function not available');
+            alert(__('Block generation function not available', 'universal-block'));
+          }
+        } else {
+          console.warn('No blocks generated from HTML');
+          alert(__('No valid blocks could be generated from the HTML', 'universal-block'));
         }
+      } else {
+        console.error('parseHtmlToBlocks function not available');
+        alert(__('HTML parser not available', 'universal-block'));
       }
-    } else {
-      console.warn('HTML parser not available');
+    } catch (error) {
+      console.error('Failed to convert and insert HTML:', error);
+      alert(__('Failed to convert HTML. Please check the console for details.', 'universal-block'));
     }
   };
 
@@ -918,15 +944,29 @@ function HTMLImportDrawer({ isOpen, onClose }) {
       return;
     }
 
-    if (typeof window.parseHTMLToBlocks === 'function') {
-      const blockMarkup = window.parseHTMLToBlocks(htmlContent);
-      if (blockMarkup) {
-        navigator.clipboard.writeText(blockMarkup).then(() => {
-          console.log('🎯 Block markup copied to clipboard');
-        }).catch(err => {
-          console.error('Failed to copy to clipboard:', err);
-        });
+    try {
+      // Use the WordPress block parser utility to convert HTML to blocks
+      if (typeof window.parseHtmlToBlocks === 'function') {
+        const blocks = window.parseHtmlToBlocks(htmlContent);
+
+        if (blocks && blocks.length > 0) {
+          // Convert block data to block markup
+          if (typeof window.generateBlockMarkup === 'function') {
+            const blockMarkup = window.generateBlockMarkup(blocks);
+            navigator.clipboard.writeText(blockMarkup).then(() => {
+              console.log('🎯 Block markup copied to clipboard');
+            }).catch(err => {
+              console.error('Failed to copy to clipboard:', err);
+              alert(__('Failed to copy to clipboard. Please check the console for details.', 'universal-block'));
+            });
+          }
+        }
+      } else {
+        console.warn('HTML parser not available');
       }
+    } catch (error) {
+      console.error('Failed to convert HTML:', error);
+      alert(__('Failed to convert HTML. Please check the console for details.', 'universal-block'));
     }
   };
 
@@ -951,10 +991,13 @@ function HTMLImportDrawer({ isOpen, onClose }) {
         </button>
       </div>
       <div className="drawer__content">
-        <MonacoEditor
+        <AceEditor
           value={htmlContent}
           onChange={setHtmlContent}
           placeholder={__('Paste your HTML here...', 'universal-block')}
+          mode="html"
+          theme="monokai"
+          rows={12}
         />
         <div className="button-group">
           <button

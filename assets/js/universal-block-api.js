@@ -7,7 +7,7 @@
 window.universalBlockUtils = {
     // Check if a block is a Universal Block
     isUniversalBlock(blockName) {
-        return blockName === 'universal-block/element';
+        return blockName === 'universal/element';
     },
 
     // Check if a block supports inner blocks
@@ -394,7 +394,7 @@ window.universalCreateBlockMarkup = function(elementType = 'text', attributes = 
     const mergedAttributes = { ...defaultAttributes, ...attributes };
     const attributesJson = JSON.stringify(mergedAttributes);
 
-    return `<!-- wp:universal-block/element ${attributesJson} /-->`;
+    return `<!-- wp:universal/element ${attributesJson} /-->`;
 };
 
 // Batch operations for multiple Universal Blocks

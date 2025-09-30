@@ -15,6 +15,7 @@ import {
 	PanelBody,
 	ToolbarGroup,
 	ToolbarDropdownMenu,
+	ToolbarButton,
 	Button
 } from '@wordpress/components';
 import { TagControls } from './TagControls';
@@ -24,7 +25,9 @@ import { ClassesPanel } from './ClassesPanel';
 import { AceEditor } from './AceEditor';
 import { ImagePanel } from './ImagePanel';
 import { DynamicPreviewPanel, ContextDebugPanel, PreviewPerformancePanel } from './PreviewControls';
-import { getTagConfig, getDefaultContentType } from '../config/tags';
+import DynamicProcessingPanel from './DynamicProcessingPanel';
+import { getTagConfig, getDefaultContentType, getTagOptions, getContentTypeOptions } from '../config/tags';
+import { getCategoryOptions } from '../config/tags/categories';
 import { parseHTMLToBlocks } from '../utils/htmlToBlocks';
 import { parseBlocksToHTML } from '../utils/blocksToHtml';
 
@@ -56,12 +59,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		selfClosing,
 		globalAttrs,
 		className,
+		isDynamic,
 		uiState
 	} = attributes;
 
 	// Preview state
 	const [isLivePreview, setIsLivePreview] = useState(false);
 	const [previewHtml, setPreviewHtml] = useState('');
+	const [dynamicProcessedContent, setDynamicProcessedContent] = useState(null);
 
 	// Get block editor functions for conversion
 	const { replaceBlocks } = useDispatch('core/block-editor');
@@ -151,6 +156,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	const currentTagName = tagName || 'div';
 	const currentContentType = contentType || getDefaultContentType(currentTagName);
 	const currentSelfClosing = selfClosing || false;
+	const currentTagCategory = uiState?.tagCategory || 'common';
 
 	// Debug the contentType issue
 	console.log('🔍 ContentType Debug:', {
@@ -180,7 +186,74 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	const src = globalAttrs?.src || '';
 	const alt = globalAttrs?.alt || '';
 
-	const blockProps = useBlockProps();
+	// Helper functions for toolbar controls
+	const handleCategoryChange = (newCategory) => {
+		setAttributes({
+			uiState: {
+				...uiState,
+				tagCategory: newCategory
+			}
+		});
+	};
+
+	const handleTagChange = (newTag) => {
+		const config = getTagConfig(newTag);
+		const updates = { tagName: newTag };
+
+		// For custom elements, provide flexible defaults
+		if (currentTagCategory === 'custom') {
+			if (!contentType) {
+				updates.contentType = 'text';
+			}
+			updates.selfClosing = false;
+		} else {
+			// Standard tag configuration
+			if (config) {
+				if (config.contentType !== undefined) {
+					updates.contentType = config.contentType === null ? 'empty' : config.contentType;
+				} else if (config.defaultContentType) {
+					updates.contentType = config.defaultContentType;
+				}
+				updates.selfClosing = config.selfClosing;
+			} else {
+				updates.contentType = 'text';
+				updates.selfClosing = false;
+			}
+		}
+
+		// Update uiState to remember selections
+		updates.uiState = {
+			...uiState,
+			selectedTagName: newTag,
+			selectedContentType: updates.contentType || contentType
+		};
+
+		setAttributes(updates);
+	};
+
+	const handleContentTypeChange = (newContentType) => {
+		const updates = {
+			contentType: newContentType,
+			uiState: {
+				...uiState,
+				selectedContentType: newContentType
+			}
+		};
+
+		// Clear content when switching to blocks type to prevent conflicts
+		if (newContentType === 'blocks') {
+			updates.content = '';
+		}
+
+		setAttributes(updates);
+	};
+
+	const blockProps = useBlockProps({
+		style: {
+			position: 'relative',
+			minHeight: '50px'
+		}
+	});
 
 	// Always call useInnerBlocksProps to avoid conditional hook calls
 	const { children, ...innerBlocksProps } = useInnerBlocksProps(blockProps, {
@@ -272,6 +345,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				if (currentTagName === 'hr') {
 					return <hr />;
 				}
+
 
 				// Generic empty element placeholder
 				return (
@@ -384,24 +458,221 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 	// For blocks content, use innerBlocksProps directly
 	if (isBlocksContent) {
+
+		// If dynamic processing is enabled and we have processed content, render clean preview
+		if (isDynamic && dynamicProcessedContent) {
+			return (
+				<>
+					<BlockControls>
+						<ToolbarGroup>
+							<ToolbarDropdownMenu
+								icon={<i className="ri-file-copy-line" style={{ fontSize: '16px' }} />}
+								label={__('Copy/Paste Styles', 'universal-block')}
+								controls={copyPasteControls}
+							/>
+						</ToolbarGroup>
+						<ToolbarGroup>
+							<ToolbarDropdownMenu
+								icon={<i className="ri-folder-line" style={{ fontSize: '16px' }} />}
+								label={__('Tag Category', 'universal-block')}
+								controls={getCategoryOptions().map(category => ({
+									title: category.label,
+									icon: <i className="ri-folder-line" style={{ fontSize: '14px' }} />,
+									isActive: currentTagCategory === category.value,
+									onClick: () => handleCategoryChange(category.value)
+								}))}
+							/>
+						</ToolbarGroup>
+						<ToolbarGroup>
+							<ToolbarDropdownMenu
+								icon={<i className="ri-code-line" style={{ fontSize: '16px' }} />}
+								label={__('HTML Tag', 'universal-block')}
+								controls={getTagOptions(currentTagCategory).map(tag => ({
+									title: typeof tag === 'object' ? tag.label : tag,
+									icon: <i className="ri-code-line" style={{ fontSize: '14px' }} />,
+									isActive: currentTagName === (typeof tag === 'object' ? tag.value : tag),
+									onClick: () => handleTagChange(typeof tag === 'object' ? tag.value : tag)
+								}))}
+							/>
+						</ToolbarGroup>
+						<ToolbarGroup>
+							<ToolbarDropdownMenu
+								icon={<i className="ri-file-text-line" style={{ fontSize: '16px' }} />}
+								label={__('Content Type', 'universal-block')}
+								controls={getContentTypeOptions(currentTagName).map(type => ({
+									title: type.charAt(0).toUpperCase() + type.slice(1),
+									icon: <i className="ri-file-text-line" style={{ fontSize: '14px' }} />,
+									isActive: currentContentType === type,
+									onClick: () => handleContentTypeChange(type)
+								}))}
+							/>
+						</ToolbarGroup>
+						<ToolbarGroup>
+							<ToolbarButton
+								icon={<i className="ri-database-2-line" style={{ fontSize: '16px' }} />}
+								label={__('Toggle Dynamic Preview', 'universal-block')}
+								isPressed={isDynamic}
+								onClick={() => setAttributes({ isDynamic: !isDynamic })}
+							/>
+						</ToolbarGroup>
+					</BlockControls>
+
+					<InspectorControls>
+						<PanelBody title={__('Block Name', 'universal-block')} initialOpen={false}>
+							<BlockNamePanel
+								blockName={blockName}
+								elementType={elementType}
+								setAttributes={setAttributes}
+								tagName={currentTagName}
+								globalAttrs={globalAttrs}
+							/>
+						</PanelBody>
+
+						<PanelBody title={__('CSS Classes', 'universal-block')} initialOpen={false}>
+							<ClassesPanel
+								className={className}
+								setAttributes={setAttributes}
+							/>
+						</PanelBody>
+
+						<PanelBody title={__('Tag Settings', 'universal-block')} initialOpen={false}>
+							<TagControls
+								attributes={{
+									tagName: currentTagName,
+									contentType: currentContentType,
+									selfClosing: currentSelfClosing,
+									...attributes
+								}}
+								setAttributes={setAttributes}
+							/>
+						</PanelBody>
+
+						{/* Image Settings Panel - only show for img tags */}
+						{currentTagName === 'img' && (
+							<ImagePanel
+								globalAttrs={globalAttrs}
+								setAttributes={setAttributes}
+							/>
+						)}
+
+						<AttributesPanel
+							globalAttrs={globalAttrs}
+							setAttributes={setAttributes}
+						/>
+
+						{/* Dynamic Processing Controls */}
+						<DynamicProcessingPanel
+							attributes={attributes}
+							setAttributes={setAttributes}
+							clientId={clientId}
+							onProcessedContent={setDynamicProcessedContent}
+						/>
+					</InspectorControls>
+
+					{/* Dynamic preview - wrapper with blockProps excluding className */}
+					<div
+						{...(() => {
+							const { className, ...propsWithoutClass } = blockProps;
+							return propsWithoutClass;
+						})()}
+						style={{
+							...blockProps.style,
+							position: 'relative'
+						}}
+						dangerouslySetInnerHTML={{
+							__html: (() => {
+								// Remove duplicate classes from processed HTML content
+								const tempDiv = document.createElement('div');
+								tempDiv.innerHTML = dynamicProcessedContent;
+								const outerDiv = tempDiv.firstElementChild;
+
+								if (outerDiv) {
+									// Only remove WordPress-specific block classes that would be duplicated from wrapper
+									const wpClassesToRemove = [
+										'wp-block-universal-element',
+										'wp-block',
+										'block-editor-block-list__block'
+									];
+									wpClassesToRemove.forEach(cls => {
+										outerDiv.classList.remove(cls);
+									});
+
+									return outerDiv.outerHTML;
+								}
+
+								return dynamicProcessedContent;
+							})()
+						}}
+					/>
+				</>
+			);
+		}
+
+		// Normal blocks content rendering
 		return (
 			<div {...innerBlocksProps}>
 				<BlockControls>
 					<ToolbarGroup>
 						<ToolbarDropdownMenu
-							icon="admin-tools"
+							icon={<i className="ri-file-copy-line" style={{ fontSize: '16px' }} />}
 							label={__('Copy/Paste Styles', 'universal-block')}
 							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-folder-line" style={{ fontSize: '16px' }} />}
+							label={__('Tag Category', 'universal-block')}
+							controls={getCategoryOptions().map(category => ({
+								title: category.label,
+								icon: <i className="ri-folder-line" style={{ fontSize: '14px' }} />,
+								isActive: currentTagCategory === category.value,
+								onClick: () => handleCategoryChange(category.value)
+							}))}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-code-line" style={{ fontSize: '16px' }} />}
+							label={__('HTML Tag', 'universal-block')}
+							controls={getTagOptions(currentTagCategory).map(tag => ({
+								title: typeof tag === 'object' ? tag.label : tag,
+								icon: <i className="ri-code-line" style={{ fontSize: '14px' }} />,
+								isActive: currentTagName === (typeof tag === 'object' ? tag.value : tag),
+								onClick: () => handleTagChange(typeof tag === 'object' ? tag.value : tag)
+							}))}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-file-text-line" style={{ fontSize: '16px' }} />}
+							label={__('Content Type', 'universal-block')}
+							controls={getContentTypeOptions(currentTagName).map(type => ({
+								title: type.charAt(0).toUpperCase() + type.slice(1),
+								icon: <i className="ri-file-text-line" style={{ fontSize: '14px' }} />,
+								isActive: currentContentType === type,
+								onClick: () => handleContentTypeChange(type)
+							}))}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarButton
+							icon={<i className="ri-database-2-line" style={{ fontSize: '16px' }} />}
+							label={__('Toggle Dynamic Preview', 'universal-block')}
+							isPressed={isDynamic}
+							onClick={() => setAttributes({ isDynamic: !isDynamic })}
 						/>
 					</ToolbarGroup>
 				</BlockControls>
 
 				<InspectorControls>
-					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={false}>
 						<BlockNamePanel
 							blockName={blockName}
 							elementType={elementType}
 							setAttributes={setAttributes}
+							tagName={currentTagName}
+							globalAttrs={globalAttrs}
 						/>
 					</PanelBody>
 
@@ -412,7 +683,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						/>
 					</PanelBody>
 
-					<PanelBody title={__('Tag Settings', 'universal-block')}>
+					<PanelBody title={__('Tag Settings', 'universal-block')} initialOpen={false}>
 						<TagControls
 							attributes={{
 								tagName: currentTagName,
@@ -461,6 +732,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						globalAttrs={globalAttrs}
 						setAttributes={setAttributes}
 					/>
+
+					{/* Dynamic Processing Controls */}
+					<DynamicProcessingPanel
+						attributes={attributes}
+						setAttributes={setAttributes}
+						clientId={clientId}
+						onProcessedContent={setDynamicProcessedContent}
+					/>
 				</InspectorControls>
 
 				{children}
@@ -475,19 +754,61 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				<BlockControls>
 					<ToolbarGroup>
 						<ToolbarDropdownMenu
-							icon="admin-tools"
+							icon={<i className="ri-file-copy-line" style={{ fontSize: '16px' }} />}
 							label={__('Copy/Paste Styles', 'universal-block')}
 							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-code-s-slash-line" style={{ fontSize: '16px' }} />}
+							label={__('Quick Tag Settings', 'universal-block')}
+							controls={[
+								{
+									title: __('Tag Category', 'universal-block'),
+									icon: <i className="ri-folder-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current category
+									}
+								},
+								{
+									title: `${__('HTML Tag', 'universal-block')}: ${currentTagName}`,
+									icon: <i className="ri-code-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current tag
+									}
+								},
+								{
+									title: `${__('Content Type', 'universal-block')}: ${currentContentType}`,
+									icon: <i className="ri-file-text-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current content type
+									}
+								}
+							]}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarButton
+							icon={<i className="ri-database-2-line" style={{ fontSize: '16px' }} />}
+							label={__('Toggle Dynamic Preview', 'universal-block')}
+							isPressed={isDynamic}
+							onClick={() => setAttributes({ isDynamic: !isDynamic })}
 						/>
 					</ToolbarGroup>
 				</BlockControls>
 
 				<InspectorControls>
-					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={false}>
 						<BlockNamePanel
 							blockName={blockName}
 							elementType={elementType}
 							setAttributes={setAttributes}
+							tagName={currentTagName}
+							globalAttrs={globalAttrs}
 						/>
 					</PanelBody>
 
@@ -498,7 +819,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						/>
 					</PanelBody>
 
-					<PanelBody title={__('Tag Settings', 'universal-block')}>
+					<PanelBody title={__('Tag Settings', 'universal-block')} initialOpen={false}>
 						<TagControls
 							attributes={{
 								tagName: currentTagName,
@@ -510,7 +831,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						/>
 					</PanelBody>
 
-					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={true}>
+					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={false}>
 						<div style={{ marginBottom: '8px' }}>
 							<label style={{
 								display: 'block',
@@ -564,6 +885,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						globalAttrs={globalAttrs}
 						setAttributes={setAttributes}
 					/>
+
+					{/* Dynamic Processing Controls */}
+					<DynamicProcessingPanel
+						attributes={attributes}
+						setAttributes={setAttributes}
+						clientId={clientId}
+						onProcessedContent={setDynamicProcessedContent}
+					/>
 				</InspectorControls>
 
 				{React.createElement(currentTagName, {
@@ -581,19 +910,61 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				<BlockControls>
 					<ToolbarGroup>
 						<ToolbarDropdownMenu
-							icon="admin-tools"
+							icon={<i className="ri-file-copy-line" style={{ fontSize: '16px' }} />}
 							label={__('Copy/Paste Styles', 'universal-block')}
 							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-code-s-slash-line" style={{ fontSize: '16px' }} />}
+							label={__('Quick Tag Settings', 'universal-block')}
+							controls={[
+								{
+									title: __('Tag Category', 'universal-block'),
+									icon: <i className="ri-folder-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current category
+									}
+								},
+								{
+									title: `${__('HTML Tag', 'universal-block')}: ${currentTagName}`,
+									icon: <i className="ri-code-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current tag
+									}
+								},
+								{
+									title: `${__('Content Type', 'universal-block')}: ${currentContentType}`,
+									icon: <i className="ri-file-text-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current content type
+									}
+								}
+							]}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarButton
+							icon={<i className="ri-database-2-line" style={{ fontSize: '16px' }} />}
+							label={__('Toggle Dynamic Preview', 'universal-block')}
+							isPressed={isDynamic}
+							onClick={() => setAttributes({ isDynamic: !isDynamic })}
 						/>
 					</ToolbarGroup>
 				</BlockControls>
 
 				<InspectorControls>
-					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={false}>
 						<BlockNamePanel
 							blockName={blockName}
 							elementType={elementType}
 							setAttributes={setAttributes}
+							tagName={currentTagName}
+							globalAttrs={globalAttrs}
 						/>
 					</PanelBody>
 
@@ -604,7 +975,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						/>
 					</PanelBody>
 
-					<PanelBody title={__('Tag Settings', 'universal-block')}>
+					<PanelBody title={__('Tag Settings', 'universal-block')} initialOpen={false}>
 						<TagControls
 							attributes={{
 								tagName: currentTagName,
@@ -627,6 +998,14 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					<AttributesPanel
 						globalAttrs={globalAttrs}
 						setAttributes={setAttributes}
+					/>
+
+					{/* Dynamic Processing Controls */}
+					<DynamicProcessingPanel
+						attributes={attributes}
+						setAttributes={setAttributes}
+						clientId={clientId}
+						onProcessedContent={setDynamicProcessedContent}
 					/>
 				</InspectorControls>
 
@@ -665,20 +1044,67 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 	}
 
 	// For non-blocks content types, use blockProps
+	// Hide set elements visually but keep them in DOM for serialization
+	const finalBlockProps = currentTagName === 'set'
+		? {
+			...blockProps,
+			style: {
+				...blockProps.style,
+				position: 'absolute',
+				left: '-9999px',
+				width: '1px',
+				height: '1px',
+				overflow: 'hidden'
+			}
+		}
+		: blockProps;
+
 	return (
-		<div {...blockProps}>
+		<div {...finalBlockProps}>
 			<BlockControls>
 				<ToolbarGroup>
 					<ToolbarDropdownMenu
-						icon="admin-tools"
+						icon={<i className="ri-file-copy-line" style={{ fontSize: '16px' }} />}
 						label={__('Copy/Paste Styles', 'universal-block')}
 						controls={copyPasteControls}
+					/>
+				</ToolbarGroup>
+				<ToolbarGroup>
+					<ToolbarDropdownMenu
+						icon={<i className="ri-code-s-slash-line" style={{ fontSize: '16px' }} />}
+						label={__('Quick Tag Settings', 'universal-block')}
+						controls={[
+							{
+								title: __('Tag Category', 'universal-block'),
+								icon: <i className="ri-folder-line" style={{ fontSize: '14px' }} />,
+								isDisabled: false,
+								onClick: () => {
+									// This will be a submenu - for now show current category
+								}
+							},
+							{
+								title: `${__('HTML Tag', 'universal-block')}: ${currentTagName}`,
+								icon: <i className="ri-code-line" style={{ fontSize: '14px' }} />,
+								isDisabled: false,
+								onClick: () => {
+									// This will be a submenu - for now show current tag
+								}
+							},
+							{
+								title: `${__('Content Type', 'universal-block')}: ${currentContentType}`,
+								icon: <i className="ri-file-text-line" style={{ fontSize: '14px' }} />,
+								isDisabled: false,
+								onClick: () => {
+									// This will be a submenu - for now show current content type
+								}
+							}
+						]}
 					/>
 				</ToolbarGroup>
 			</BlockControls>
 
 			<InspectorControls>
-				<PanelBody title={__('Block Name', 'universal-block')} initialOpen={true}>
+				<PanelBody title={__('Block Name', 'universal-block')} initialOpen={false}>
 					<BlockNamePanel
 						blockName={blockName}
 						elementType={elementType}
@@ -707,7 +1133,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 				{/* HTML Content Panel - only show for HTML content type */}
 				{currentContentType === 'html' && (
-					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={true}>
+					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={false}>
 						<div style={{ marginBottom: '8px' }}>
 							<label style={{
 								display: 'block',
@@ -763,6 +1189,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					setAttributes={setAttributes}
 				/>
 
+				{/* Dynamic Processing Controls */}
+				<DynamicProcessingPanel
+					attributes={attributes}
+					setAttributes={setAttributes}
+					clientId={clientId}
+				/>
+
 				{/* Dynamic Preview Controls */}
 				<DynamicPreviewPanel
 					blockId={clientId}
@@ -774,7 +1207,57 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				{/* Debug Panels */}
 				<ContextDebugPanel />
 				<PreviewPerformancePanel />
+
+				{/* Custom Advanced Panels in Settings Tab */}
+				<PanelBody title={__('🔧 Advanced Settings', 'universal-block')} initialOpen={false}>
+					<p>{__('Advanced configuration options for the universal element.', 'universal-block')}</p>
+
+					<hr />
+
+					<h4>{__('Element Information', 'universal-block')}</h4>
+					<p><strong>{__('Element Type:', 'universal-block')}</strong> {elementType || 'undefined'}</p>
+					<p><strong>{__('Tag Name:', 'universal-block')}</strong> {tagName}</p>
+					<p><strong>{__('Content Type:', 'universal-block')}</strong> {contentType}</p>
+
+					{Object.keys(globalAttrs).length > 0 && (
+						<>
+							<h4>{__('Global Attributes:', 'universal-block')}</h4>
+							<pre style={{fontSize: '12px', background: '#f0f0f0', padding: '8px', borderRadius: '4px'}}>
+								{JSON.stringify(globalAttrs, null, 2)}
+							</pre>
+						</>
+					)}
+				</PanelBody>
+
+				<PanelBody title={__('👨‍💻 Developer Tools', 'universal-block')} initialOpen={false}>
+					<p>{__('Tools for developers and advanced users.', 'universal-block')}</p>
+
+					{/* Block ID */}
+					<p><strong>{__('Block ID:', 'universal-block')}</strong></p>
+					<code style={{fontSize: '11px', background: '#f0f0f0', padding: '4px', borderRadius: '2px'}}>
+						{clientId}
+					</code>
+
+					{/* Raw Attributes */}
+					<hr />
+					<h4>{__('Raw Block Attributes:', 'universal-block')}</h4>
+					<pre style={{fontSize: '10px', background: '#f0f0f0', padding: '8px', borderRadius: '4px', maxHeight: '200px', overflow: 'auto'}}>
+						{JSON.stringify({
+							blockName,
+							elementType,
+							tagName,
+							contentType,
+							content,
+							className,
+							globalAttrs,
+							selfClosing,
+							isDynamic,
+							uiState
+						}, null, 2)}
+					</pre>
+				</PanelBody>
 			</InspectorControls>
+
 
 			{renderContentByType()}
 		</div>

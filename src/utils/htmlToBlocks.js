@@ -1,7 +1,7 @@
 /**
  * HTML to Universal Blocks Parser
  *
- * Converts HTML into universal-block/element block structures
+ * Converts HTML into universal/element block structures
  */
 
 import { createBlock } from '@wordpress/blocks';
@@ -173,7 +173,7 @@ function hasChildElements(element) {
  */
 function getBlockName(tagName) {
 	// All elements use the universal block
-	return 'universal-block/element';
+	return 'universal/element';
 }
 
 /**

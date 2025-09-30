@@ -77,7 +77,7 @@
                 const text = node.textContent.trim();
                 if (text) {
                     return {
-                        name: 'universal-block/element',
+                        name: 'universal/element',
                         attributes: {
                             elementType: 'text',
                             tagName: 'p',
@@ -107,7 +107,9 @@
                     }
                 });
 
-                // Determine element type based on tag
+                // Determine element type and content type based on tag and content
+                let contentType;
+
                 switch (tagName) {
                     case 'h1':
                     case 'h2':
@@ -116,20 +118,25 @@
                     case 'h5':
                     case 'h6':
                         elementType = 'heading';
+                        contentType = 'text';
                         content = node.textContent;
                         break;
                     case 'a':
                         elementType = 'link';
+                        contentType = 'text';
                         content = node.textContent.trim().replace(/\s+/g, ' ');
                         break;
                     case 'img':
                         elementType = 'image';
+                        contentType = 'empty';
                         break;
                     case 'hr':
                         elementType = 'rule';
+                        contentType = 'empty';
                         break;
                     case 'svg':
                         elementType = 'svg';
+                        contentType = 'html';
                         // For SVGs, we want to capture the inner content without encoding
                         content = node.innerHTML;
                         break;
@@ -142,30 +149,90 @@
                     case 'aside':
                     case 'nav':
                         elementType = 'container';
+                        contentType = 'blocks';
                         break;
                     case 'p':
                         elementType = 'text';
+                        contentType = 'text';
                         content = node.textContent.trim().replace(/\s+/g, ' ');
-                        // Ensure tagName is preserved for paragraphs
                         break;
                     case 'span':
+                    case 'strong':
+                    case 'b':
+                    case 'em':
+                    case 'i':
+                    case 'code':
+                    case 'small':
+                    case 'mark':
+                    case 'del':
+                    case 'ins':
+                    case 'sub':
+                    case 'sup':
+                    case 'time':
+                    case 'abbr':
+                    case 'cite':
+                    case 'kbd':
+                    case 'samp':
+                    case 'var':
                         elementType = 'text';
+                        contentType = 'text';
                         content = node.textContent.trim().replace(/\s+/g, ' ');
                         break;
                     default:
-                        elementType = 'text';
-                        content = node.textContent.trim().replace(/\s+/g, ' ');
+                        // Use custom elementType for undefined elements
+                        elementType = 'custom';
+
+                        // Determine contentType based on node content
+                        if (node.children.length > 0) {
+                            // Check if it has mixed content (text + elements)
+                            const hasTextNodes = Array.from(node.childNodes).some(child =>
+                                child.nodeType === Node.TEXT_NODE && child.textContent.trim()
+                            );
+                            const hasElementNodes = node.children.length > 0;
+
+                            if (hasTextNodes && hasElementNodes) {
+                                // Mixed content - use html to preserve structure
+                                contentType = 'html';
+                                content = node.innerHTML;
+                            } else if (hasElementNodes) {
+                                // Only child elements - use blocks
+                                contentType = 'blocks';
+                            } else {
+                                // Only text - use text
+                                contentType = 'text';
+                                content = node.textContent.trim().replace(/\s+/g, ' ');
+                            }
+                        } else {
+                            // No children - determine by text content
+                            const textContent = node.textContent.trim();
+                            if (textContent) {
+                                contentType = 'text';
+                                content = textContent.replace(/\s+/g, ' ');
+                            } else {
+                                contentType = 'empty';
+                            }
+                        }
                 }
 
                 const block = {
-                    name: 'universal-block/element',
+                    name: 'universal/element',
                     attributes: {
                         elementType,
                         tagName,
+                        contentType,
                         globalAttrs,
                         selfClosing: ['img', 'hr', 'br', 'input'].includes(tagName)
                     }
                 };
+
+                // Set up uiState for custom elements
+                if (elementType === 'custom') {
+                    block.attributes.uiState = {
+                        tagCategory: 'custom',
+                        selectedTagName: tagName,
+                        selectedContentType: contentType
+                    };
+                }
 
                 // Add className if it exists
                 if (className) {
@@ -176,8 +243,8 @@
                     block.attributes.content = content;
                 }
 
-                // Handle containers with children
-                if (elementType === 'container' && node.children.length > 0) {
+                // Handle elements with blocks contentType (containers and custom elements)
+                if ((elementType === 'container' || (elementType === 'custom' && contentType === 'blocks')) && node.children.length > 0) {
                     const innerBlocks = [];
                     Array.from(node.children).forEach(child => {
                         const childBlock = processNode(child);
@@ -187,45 +254,6 @@
                     });
                     if (innerBlocks.length > 0) {
                         block.innerBlocks = innerBlocks;
-                    }
-                }
-
-                // Handle non-container elements that might have mixed content (text + elements)
-                if (elementType !== 'container' && elementType !== 'svg' && node.children.length > 0) {
-                    // For mixed content elements like links with spans
-                    const innerBlocks = [];
-                    let hasDirectText = false;
-
-
-                    // Check if there's direct text content (not just from child elements)
-                    Array.from(node.childNodes).forEach(child => {
-                        if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
-                            hasDirectText = true;
-                        } else if (child.nodeType === Node.ELEMENT_NODE) {
-                            const childBlock = processNode(child);
-                            if (childBlock) {
-                                innerBlocks.push(childBlock);
-                            }
-                        }
-                    });
-
-                    if (innerBlocks.length > 0) {
-                        block.innerBlocks = innerBlocks;
-                        // Only remove content if there's no direct text, or extract just the direct text
-                        if (!hasDirectText) {
-                            delete block.attributes.content;
-                        } else {
-                            // Extract only the direct text nodes, not child element text
-                            const directText = Array.from(node.childNodes)
-                                .filter(child => child.nodeType === Node.TEXT_NODE)
-                                .map(child => child.textContent)
-                                .join('')
-                                .trim()
-                                .replace(/\s+/g, ' ');
-                            if (directText) {
-                                block.attributes.content = directText;
-                            }
-                        }
                     }
                 }
 
@@ -253,7 +281,7 @@
     function insertBlockMarkupIntoEditor(blockMarkup) {
         if (!wp || !wp.data || !wp.blocks) {
             console.error('WordPress block editor not available');
-            return;
+            return false;
         }
 
         const { dispatch, select } = wp.data;
@@ -262,18 +290,38 @@
             // Parse the block markup using WordPress's built-in parser
             const blocks = wp.blocks.parse(blockMarkup);
 
-            // Get current block index for insertion
-            const currentBlockIndex = select('core/block-editor').getSelectedBlockIndex();
-            const insertIndex = currentBlockIndex >= 0 ? currentBlockIndex + 1 : 0;
+            if (!blocks || blocks.length === 0) {
+                console.error('No valid blocks parsed from markup:', blockMarkup);
+                return false;
+            }
 
-            // Insert blocks into editor
-            dispatch('core/block-editor').insertBlocks(blocks, insertIndex);
+            console.log('🔍 Parsed blocks:', blocks);
 
-            console.log('Successfully inserted block markup:', blocks);
+            // Get more reliable insertion point
+            const selectedBlockClientId = select('core/block-editor').getSelectedBlockClientId();
+            const insertionPoint = select('core/block-editor').getBlockInsertionPoint();
+
+            console.log('🔍 Selected block ID:', selectedBlockClientId);
+            console.log('🔍 Insertion point:', insertionPoint);
+
+            // Insert blocks at the insertion point
+            if (insertionPoint) {
+                dispatch('core/block-editor').insertBlocks(
+                    blocks,
+                    insertionPoint.index,
+                    insertionPoint.rootClientId
+                );
+            } else {
+                // Fallback: insert at the end
+                dispatch('core/block-editor').insertBlocks(blocks);
+            }
+
+            console.log('✅ Successfully inserted blocks:', blocks);
+            return true;
 
         } catch (error) {
-            console.error('Error inserting block markup into editor:', error);
-            throw error;
+            console.error('❌ Error inserting block markup into editor:', error);
+            return false;
         }
     }
 

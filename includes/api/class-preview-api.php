@@ -44,6 +44,30 @@ class Universal_Block_Preview_API {
 				)
 			)
 		) );
+
+		// New dynamic preview endpoint for block subtrees
+		register_rest_route( 'universal-block/v1', '/dynamic-preview', array(
+			'methods' => 'POST',
+			'callback' => array( $this, 'dynamic_preview_endpoint' ),
+			'permission_callback' => array( $this, 'preview_permissions' ),
+			'args' => array(
+				'blockContent' => array(
+					'required' => true,
+					'type' => 'string',
+					'description' => 'Serialized content of the dynamic block and its children'
+				),
+				'blockId' => array(
+					'required' => true,
+					'type' => 'string',
+					'description' => 'ID of the dynamic block'
+				),
+				'context' => array(
+					'required' => true,
+					'type' => 'object',
+					'description' => 'Context data for processing'
+				)
+			)
+		) );
 	}
 
 	/**
@@ -95,6 +119,54 @@ class Universal_Block_Preview_API {
 			return new WP_Error(
 				'preview_error',
 				'Preview generation failed: ' . $e->getMessage(),
+				array( 'status' => 500 )
+			);
+		}
+	}
+
+	/**
+	 * Handle dynamic preview request for block subtrees
+	 */
+	public function dynamic_preview_endpoint( $request ) {
+		$start_time = microtime( true );
+
+		try {
+			$block_content = $request->get_param( 'blockContent' );
+			$block_id = $request->get_param( 'blockId' );
+			$context = $request->get_param( 'context' );
+
+			// Set up the preview environment
+			$this->setup_dynamic_context( $context );
+
+			// First convert block markup to actual HTML
+			$rendered_html = do_blocks( $block_content );
+
+			// Then process the HTML with dynamic tags and Timber
+			$processed_html = $this->process_dynamic_content( $rendered_html );
+
+			$processing_time = round( ( microtime( true ) - $start_time ) * 1000, 2 );
+
+			return array(
+				'success' => true,
+				'content' => $processed_html,
+				'blockId' => $block_id,
+				'context_used' => $this->get_dynamic_context_summary( $context ),
+				'processing_time' => $processing_time . 'ms',
+				'original_length' => strlen( $block_content ),
+				'processed_length' => strlen( $processed_html ),
+				'raw_html' => $rendered_html, // For debugging
+				'debug_info' => array(
+					'has_set_tags' => strpos( $rendered_html, '<set' ) !== false,
+					'has_twig_vars' => preg_match( '/\{\{.*?\}\}/', $rendered_html ),
+					'has_twig_set' => preg_match( '/\{%\s*set.*?%\}/', $processed_html ),
+					'timber_context_keys' => class_exists( '\Timber\Timber' ) ? array_keys( \Timber\Timber::context() ) : array()
+				)
+			);
+
+		} catch ( Exception $e ) {
+			return new WP_Error(
+				'dynamic_preview_error',
+				'Dynamic preview generation failed: ' . $e->getMessage(),
 				array( 'status' => 500 )
 			);
 		}
@@ -297,6 +369,97 @@ class Universal_Block_Preview_API {
 
 		if ( ! empty( $page_context['wpUserData'] ) ) {
 			$summary['user_data'] = true;
+		}
+
+		return $summary;
+	}
+
+	/**
+	 * Set up dynamic context for individual block processing
+	 */
+	private function setup_dynamic_context( $context ) {
+		global $post, $wp_query;
+
+		// Set up post context
+		if ( ! empty( $context['postId'] ) ) {
+			$preview_post = get_post( $context['postId'] );
+			if ( $preview_post ) {
+				$post = $preview_post;
+				setup_postdata( $preview_post );
+
+				// Set up query context
+				$wp_query->queried_object = $preview_post;
+				$wp_query->queried_object_id = $preview_post->ID;
+			}
+		}
+
+		// Set up user context
+		if ( ! empty( $context['currentUser'] ) ) {
+			wp_set_current_user( $context['currentUser']['id'] );
+		}
+
+		// Add dynamic context to Timber
+		if ( ! empty( $context['dynamic_block'] ) ) {
+			add_filter( 'timber/context', function( $timber_context ) use ( $context ) {
+				// Add preview mode flag
+				$timber_context['preview_mode'] = true;
+				$timber_context['dynamic_block'] = true;
+
+				// Add page data from editor
+				if ( ! empty( $context['pageData'] ) ) {
+					$timber_context['page_data'] = $context['pageData'];
+				}
+
+				// Add user data from editor
+				if ( ! empty( $context['wpUserData'] ) ) {
+					$timber_context['user_data'] = $context['wpUserData'];
+				}
+
+				// Add test data for preview
+				$timber_context['test_array'] = array(
+					array( 'name' => 'Item 1', 'value' => 100, 'featured' => true ),
+					array( 'name' => 'Item 2', 'value' => 200, 'featured' => false ),
+					array( 'name' => 'Item 3', 'value' => 300, 'featured' => true ),
+					array( 'name' => 'Item 4', 'value' => 400, 'featured' => false ),
+					array( 'name' => 'Item 5', 'value' => 500, 'featured' => true )
+				);
+
+				// Add user count for testing
+				$timber_context['user_count'] = 42;
+
+				// Add featured status for testing
+				$timber_context['is_featured'] = true;
+
+				// Add current date
+				$timber_context['today'] = current_time( 'Y-m-d' );
+
+				return $timber_context;
+			} );
+		}
+	}
+
+	/**
+	 * Get summary of context used in dynamic preview
+	 */
+	private function get_dynamic_context_summary( $context ) {
+		$summary = array();
+
+		if ( ! empty( $context['postId'] ) ) {
+			$post = get_post( $context['postId'] );
+			$summary['post'] = $post ? $post->post_title : 'Unknown';
+		}
+
+		if ( ! empty( $context['postType'] ) ) {
+			$summary['post_type'] = $context['postType'];
+		}
+
+		if ( ! empty( $context['currentUser'] ) ) {
+			$summary['user'] = $context['currentUser']['display_name'] ?? 'Unknown User';
+		}
+
+		if ( ! empty( $context['dynamic_block'] ) ) {
+			$summary['dynamic_processing'] = true;
+			$summary['test_data'] = 'Available (test_array, user_count, is_featured, today)';
 		}
 
 		return $summary;

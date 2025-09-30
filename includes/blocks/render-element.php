@@ -146,29 +146,50 @@ switch ( $content_type ) {
 		break;
 
 	case 'html':
-		// Use block content attribute with minimal sanitization for HTML content
-		// For SVG, we want to preserve the HTML structure
-		if ( $tag_name === 'svg' ) {
-			$final_content = wp_kses( $block_content, array(
-				'path' => array( 'd' => true, 'fill' => true, 'stroke' => true, 'stroke-width' => true ),
-				'circle' => array( 'cx' => true, 'cy' => true, 'r' => true, 'fill' => true, 'stroke' => true ),
-				'rect' => array( 'x' => true, 'y' => true, 'width' => true, 'height' => true, 'fill' => true ),
-				'line' => array( 'x1' => true, 'y1' => true, 'x2' => true, 'y2' => true, 'stroke' => true ),
-				'polygon' => array( 'points' => true, 'fill' => true, 'stroke' => true ),
-				'polyline' => array( 'points' => true, 'fill' => true, 'stroke' => true ),
-				'ellipse' => array( 'cx' => true, 'cy' => true, 'rx' => true, 'ry' => true, 'fill' => true ),
-				'text' => array( 'x' => true, 'y' => true, 'fill' => true, 'font-family' => true, 'font-size' => true ),
-				'g' => array( 'transform' => true, 'fill' => true, 'stroke' => true ),
-				'defs' => array(),
-				'use' => array( 'href' => true, 'x' => true, 'y' => true ),
-				'symbol' => array( 'id' => true, 'viewBox' => true ),
-				'title' => array(),
-				'desc' => array()
-			) );
-		} else {
-			// For other HTML content, use more permissive sanitization
-			$final_content = wp_kses_post( $block_content );
-		}
+		// Use block content attribute with extended sanitization for HTML content
+		// Create extended allowed HTML for mixed content that may include SVGs
+		$allowed_html = wp_kses_allowed_html( 'post' );
+
+		// Add SVG support to the allowed HTML
+		$svg_allowed = array(
+			'svg' => array(
+				'viewbox' => true,
+				'fill' => true,
+				'data-slot' => true,
+				'aria-hidden' => true,
+				'class' => true,
+				'width' => true,
+				'height' => true,
+				'xmlns' => true
+			),
+			'path' => array(
+				'd' => true,
+				'fill' => true,
+				'stroke' => true,
+				'stroke-width' => true,
+				'clip-rule' => true,
+				'fill-rule' => true
+			),
+			'circle' => array( 'cx' => true, 'cy' => true, 'r' => true, 'fill' => true, 'stroke' => true ),
+			'rect' => array( 'x' => true, 'y' => true, 'width' => true, 'height' => true, 'fill' => true ),
+			'line' => array( 'x1' => true, 'y1' => true, 'x2' => true, 'y2' => true, 'stroke' => true ),
+			'polygon' => array( 'points' => true, 'fill' => true, 'stroke' => true ),
+			'polyline' => array( 'points' => true, 'fill' => true, 'stroke' => true ),
+			'ellipse' => array( 'cx' => true, 'cy' => true, 'rx' => true, 'ry' => true, 'fill' => true ),
+			'text' => array( 'x' => true, 'y' => true, 'fill' => true, 'font-family' => true, 'font-size' => true ),
+			'g' => array( 'transform' => true, 'fill' => true, 'stroke' => true ),
+			'defs' => array(),
+			'use' => array( 'href' => true, 'x' => true, 'y' => true ),
+			'symbol' => array( 'id' => true, 'viewBox' => true ),
+			'title' => array(),
+			'desc' => array()
+		);
+
+		// Merge SVG allowed elements with post allowed elements
+		$allowed_html = array_merge( $allowed_html, $svg_allowed );
+
+		// Apply extended sanitization that preserves SVGs and other HTML
+		$final_content = wp_kses( $block_content, $allowed_html );
 		break;
 
 	case 'empty':

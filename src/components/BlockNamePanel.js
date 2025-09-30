@@ -11,67 +11,42 @@ const ELEMENT_TYPE_NAMES = {
 	container: __('Container', 'universal-block')
 };
 
-export function BlockNamePanel({ blockName, elementType, setAttributes }) {
-	const [useCustomName, setUseCustomName] = useState(!!blockName);
-
-	// Get the default name based on element type
-	const defaultName = ELEMENT_TYPE_NAMES[elementType] || __('Universal Element', 'universal-block');
-
-	// Update block name when element type changes (only if not using custom name)
-	useEffect(() => {
-		if (!useCustomName) {
-			setAttributes({ blockName: '' });
-		}
-	}, [elementType, useCustomName, setAttributes]);
-
-	const handleToggleChange = (checked) => {
-		setUseCustomName(checked);
-		if (!checked) {
-			// Reset to default (empty string means use element type)
-			setAttributes({ blockName: '' });
-		} else if (!blockName) {
-			// Set current default as starting point for custom name
-			setAttributes({ blockName: defaultName });
-		}
-	};
+export function BlockNamePanel({ blockName, elementType, setAttributes, tagName, globalAttrs }) {
+	// Get the default name based on element type or tag name
+	let defaultName;
+	if (tagName === 'set' && globalAttrs?.variable) {
+		defaultName = `Set - ${globalAttrs.variable}`;
+	} else if (tagName === 'if' && globalAttrs?.source) {
+		defaultName = `If - ${globalAttrs.source}`;
+	} else if (tagName === 'loop' && (globalAttrs?.name || globalAttrs?.source)) {
+		const displayName = globalAttrs.name || globalAttrs.source;
+		defaultName = `Loop - ${displayName}`;
+	} else {
+		defaultName = ELEMENT_TYPE_NAMES[elementType] || __('Universal Element', 'universal-block');
+	}
 
 	const handleNameChange = (value) => {
-		setAttributes({ blockName: value });
+		// If the value matches the default, clear it to use auto-generated name
+		if (value === defaultName) {
+			setAttributes({ blockName: '' });
+		} else {
+			setAttributes({ blockName: value });
+		}
 	};
 
 	// Display name is either the custom name or the default based on element type
 	const displayName = blockName || defaultName;
 
 	return (
-		<>
-			<div style={{
-				padding: '12px 0',
-				borderBottom: '1px solid #e0e0e0',
-				marginBottom: '12px',
-				fontSize: '14px',
-				fontWeight: '500'
-			}}>
-				{__('Block Name:', 'universal-block')} {displayName}
-			</div>
-
-			<ToggleControl
-				label={__('Use custom block name', 'universal-block')}
-				checked={useCustomName}
-				onChange={handleToggleChange}
-				help={useCustomName
-					? __('Enter a custom name for this block', 'universal-block')
-					: __('Block name will match the element type', 'universal-block')
-				}
-			/>
-
-			{useCustomName && (
-				<TextControl
-					label={__('Custom Block Name', 'universal-block')}
-					value={blockName}
-					onChange={handleNameChange}
-					placeholder={defaultName}
-				/>
-			)}
-		</>
+		<TextControl
+			label={__('Block Name', 'universal-block')}
+			value={displayName}
+			onChange={handleNameChange}
+			placeholder={defaultName}
+			help={blockName
+				? __('Custom name - clear to use auto-generated name', 'universal-block')
+				: __('Auto-generated name - edit to customize', 'universal-block')
+			}
+		/>
 	);
 }

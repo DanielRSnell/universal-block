@@ -1,73 +1,50 @@
 import { __ } from '@wordpress/i18n';
-import { TextareaControl, Button, Flex, FlexItem } from '@wordpress/components';
-import { useState } from '@wordpress/element';
+import { TextareaControl, Button } from '@wordpress/components';
+import { useEffect } from '@wordpress/element';
 
 export function ClassesPanel({ className, setAttributes }) {
-	const [inputValue, setInputValue] = useState(className || '');
+	// Always sync with the current className from the block
+	useEffect(() => {
+		// No local state needed - always use the className prop directly
+	}, [className]);
 
-	const handleApply = () => {
+	const handleInputChange = (value) => {
 		// Clean up the input - remove extra spaces, normalize
-		const cleanedClasses = inputValue
+		const cleanedClasses = value
 			.trim()
 			.split(/\s+/)
 			.filter(cls => cls.length > 0)
 			.join(' ');
 
-		setAttributes({ className: cleanedClasses });
+		// Auto-update the className immediately as user types
+		setAttributes({ className: cleanedClasses || '' });
 	};
 
 	const handleClear = () => {
-		setInputValue('');
 		setAttributes({ className: '' });
 	};
-
-	const handleInputChange = (value) => {
-		setInputValue(value);
-	};
-
-	// Auto-apply on blur for better UX
-	const handleBlur = () => {
-		if (inputValue !== className) {
-			handleApply();
-		}
-	};
-
-	const hasChanges = inputValue !== (className || '');
 
 	return (
 		<>
 			<TextareaControl
-				label={__('CSS Classes', 'universal-block')}
-				value={inputValue}
+				value={className || ''}
 				onChange={handleInputChange}
-				onBlur={handleBlur}
 				placeholder={__('Enter CSS classes separated by spaces...', 'universal-block')}
 				help={__('Add utility classes like: flex justify-center items-center p-4 bg-blue-500', 'universal-block')}
 				rows={3}
 			/>
 
-			{hasChanges && (
-				<Flex justify="space-between" style={{ marginTop: '8px' }}>
-					<FlexItem>
-						<Button
-							variant="secondary"
-							isSmall
-							onClick={handleApply}
-						>
-							{__('Apply Changes', 'universal-block')}
-						</Button>
-					</FlexItem>
-					<FlexItem>
-						<Button
-							variant="tertiary"
-							isSmall
-							isDestructive
-							onClick={handleClear}
-						>
-							{__('Clear All', 'universal-block')}
-						</Button>
-					</FlexItem>
-				</Flex>
+			{className && (
+				<div style={{ marginTop: '8px' }}>
+					<Button
+						variant="tertiary"
+						isSmall
+						isDestructive
+						onClick={handleClear}
+					>
+						{__('Clear All Classes', 'universal-block')}
+					</Button>
+				</div>
 			)}
 
 			{className && (

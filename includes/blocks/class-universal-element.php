@@ -22,7 +22,7 @@ class Universal_Element {
 	 * Initialize the class.
 	 */
 	public function init() {
-		add_filter( 'render_block_universal-block/element', array( $this, 'render_block' ), 10, 2 );
+		add_filter( 'render_block_universal/element', array( $this, 'render_block' ), 10, 2 );
 	}
 
 	/**
