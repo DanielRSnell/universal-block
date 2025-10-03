@@ -196,5 +196,120 @@ add_filter( 'the_content', function( $content ) {
 		}
 	}
 
+	// Frontend debugging widget when ?debug=true
+	if ( isset( $_GET['debug'] ) && $_GET['debug'] === 'true' ) {
+		// Add context to itself for debugging
+		$context['state'] = $context;
+
+		// Remove post content to save space in debug widget
+		if ( isset( $context['state']['post'] ) && isset( $context['state']['post']->content ) ) {
+			$context['state']['post']->content = null;
+		}
+
+		// Add ACF fields if acf=true and ACF is available
+		if ( isset( $_GET['acf'] ) && $_GET['acf'] === 'true' && function_exists( 'get_fields' ) ) {
+			if ( isset( $context['state']['post'] ) && isset( $context['state']['post']->ID ) ) {
+				$context['state']['post']->meta = get_fields( $context['state']['post']->ID );
+			}
+		}
+
+		// Output context JSON and widget in footer
+		add_action( 'wp_footer', function() use ( $context ) {
+			// Output context as JSON in script tag
+			?>
+			<script id="context-debug" type="application/json">
+<?php echo wp_json_encode( $context['state'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?>
+</script>
+
+			<!-- Debug Widget HTML -->
+			<div id="universal-block-debug-widget">
+				<div class="debug-widget-header">
+					<h3 class="debug-widget-title">🔍 Timber Context</h3>
+					<div class="debug-widget-controls">
+						<button class="debug-widget-btn" id="debug-widget-minimize" title="Minimize">−</button>
+						<button class="debug-widget-btn" id="debug-widget-close" title="Close">×</button>
+					</div>
+				</div>
+				<div class="debug-widget-content">
+					<div id="debug-ace-editor"></div>
+				</div>
+			</div>
+
+			<style>
+				#universal-block-debug-widget {
+					position: fixed;
+					bottom: 20px;
+					right: 20px;
+					width: 400px;
+					max-height: 600px;
+					background: #1e1e1e;
+					border: 1px solid #444;
+					border-radius: 8px;
+					box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+					z-index: 999999;
+					display: flex;
+					flex-direction: column;
+					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+				}
+				#universal-block-debug-widget.minimized {
+					width: auto;
+					height: auto;
+					max-height: none;
+				}
+				#universal-block-debug-widget.minimized .debug-widget-content {
+					display: none;
+				}
+				.debug-widget-header {
+					padding: 12px 16px;
+					background: #2d2d2d;
+					border-bottom: 1px solid #444;
+					border-radius: 8px 8px 0 0;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					cursor: move;
+					user-select: none;
+				}
+				.debug-widget-title {
+					color: #fff;
+					font-size: 14px;
+					font-weight: 600;
+					margin: 0;
+				}
+				.debug-widget-controls {
+					display: flex;
+					gap: 8px;
+				}
+				.debug-widget-btn {
+					background: transparent;
+					border: none;
+					color: #999;
+					cursor: pointer;
+					padding: 4px;
+					font-size: 16px;
+					line-height: 1;
+					transition: color 0.2s;
+				}
+				.debug-widget-btn:hover {
+					color: #fff;
+				}
+				.debug-widget-content {
+					flex: 1;
+					overflow: hidden;
+					display: flex;
+					flex-direction: column;
+				}
+				#debug-ace-editor {
+					flex: 1;
+					min-height: 400px;
+				}
+			</style>
+
+			<script src="<?php echo esc_url( plugin_dir_url( __FILE__ ) . 'assets/global/ace/src-min-noconflict/ace.js' ); ?>"></script>
+			<script src="<?php echo esc_url( plugin_dir_url( __FILE__ ) . 'assets/debug-widget.js' ); ?>"></script>
+			<?php
+		}, 999 );
+	}
+
 	return $content;
 }, 11 );

@@ -80,10 +80,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		};
 	}, []);
 
-	// Debug logging when this block is selected
+	// Debug logging when ANY block is selected
 	useEffect(() => {
-		if (selectedBlockId === clientId && rawBlockData) {
-			console.group('🔍 Universal Block Debug - RAW Block Object');
+		if (selectedBlockId && rawBlockData) {
+			console.group('🔍 Block Debug - RAW Block Object');
 			console.log('📦 Client ID:', rawBlockData.clientId);
 			console.log('🔷 Block Name:', rawBlockData.name);
 			console.log('🆔 Is Valid:', rawBlockData.isValid);
@@ -95,7 +95,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 			console.log('🔍 COMPLETE RAW BLOCK OBJECT:', rawBlockData);
 			console.groupEnd();
 		}
-	}, [selectedBlockId, clientId, rawBlockData]);
+	}, [selectedBlockId, rawBlockData]);
 
 	// Convert HTML to inner blocks
 	const convertToInnerBlocks = () => {
@@ -255,8 +255,43 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 	// Always call useInnerBlocksProps to avoid conditional hook calls
 	const { children, ...innerBlocksProps } = useInnerBlocksProps(blockProps, {
-		renderAppender: InnerBlocks.DefaultBlockAppender
+		renderAppender: false
 	});
+
+	// Extract only the essential data attributes from blockProps for editor functionality
+	// This keeps block selection/editing working while removing visual wrapper classes
+	const getEditorDataAttributes = () => {
+		return {
+			'data-block': blockProps['data-block'],
+			'data-type': blockProps['data-type'],
+			'data-title': blockProps['data-title'],
+		};
+	};
+
+	// Create clean props with user's classes/attributes + minimal editor data attributes
+	const getCleanElementProps = () => {
+		const props = {
+			...getEditorDataAttributes(),
+			className: className || undefined,
+			style: globalAttrs?.style || undefined,
+			...globalAttrs
+		};
+
+		// Remove style from globalAttrs if it was already added above to avoid duplication
+		if (props.style && globalAttrs?.style) {
+			const { style, ...restGlobalAttrs } = globalAttrs;
+			Object.assign(props, restGlobalAttrs);
+		}
+
+		// Clean up undefined values
+		Object.keys(props).forEach(key => {
+			if (props[key] === undefined) {
+				delete props[key];
+			}
+		});
+
+		return props;
+	};
 
 	// Determine if we should use blocks content
 	const isBlocksContent = currentContentType === 'blocks';
@@ -270,6 +305,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						value={content}
 						onChange={(value) => setAttributes({ content: value })}
 						placeholder={__('Enter your text...', 'universal-block')}
+						{...getCleanElementProps()}
 					/>
 				);
 
@@ -344,23 +380,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					return <hr />;
 				}
 
-
-				// Generic empty element placeholder
-				return (
-					<div
-						style={{
-							background: '#f8f9fa',
-							border: '1px dashed #ddd',
-							borderRadius: '4px',
-							padding: '20px',
-							textAlign: 'center',
-							color: '#888',
-							fontSize: '14px'
-						}}
-					>
-						{__('Empty element', 'universal-block')} ({currentTagName})
-					</div>
-				);
+				// For other empty elements, render nothing to avoid breaking preview
+				return null;
 
 			default:
 				return (
@@ -651,9 +672,12 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 			);
 		}
 
-		// Normal blocks content rendering
+		// Normal blocks content rendering - use actual tag element with clean props only
+		const TagElement = currentTagName;
+		const cleanProps = getCleanElementProps();
+
 		return (
-			<div {...innerBlocksProps}>
+			<>
 				<BlockControls>
 					<ToolbarGroup>
 						<ToolbarDropdownMenu
@@ -785,8 +809,10 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					/>
 				</InspectorControls>
 
-				{children}
-			</div>
+				<TagElement {...cleanProps}>
+					{children}
+				</TagElement>
+			</>
 		);
 	}
 
@@ -876,16 +902,35 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={false}>
 						<div style={{ marginBottom: '8px' }}>
-							<label style={{
-								display: 'block',
-								marginBottom: '4px',
-								fontSize: '11px',
-								fontWeight: '500',
-								textTransform: 'uppercase',
-								color: '#1e1e1e'
+							<div style={{
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'space-between',
+								marginBottom: '4px'
 							}}>
-								{__('HTML Content', 'universal-block')}
-							</label>
+								<label style={{
+									fontSize: '11px',
+									fontWeight: '500',
+									textTransform: 'uppercase',
+									color: '#1e1e1e'
+								}}>
+									{__('HTML Content', 'universal-block')}
+								</label>
+								<button
+									onClick={() => window.openUniversalBlockHtmlEditor && window.openUniversalBlockHtmlEditor()}
+									style={{
+										background: 'none',
+										border: 'none',
+										cursor: 'pointer',
+										padding: '4px',
+										display: 'flex',
+										alignItems: 'center'
+									}}
+									title={__('Expand Editor', 'universal-block')}
+								>
+									<i className="ri-window-line" style={{ fontSize: '16px' }}></i>
+								</button>
+							</div>
 							<AceEditor
 								value={content || ''}
 								onChange={(newValue) => setAttributes({ content: newValue })}
@@ -939,7 +984,7 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				</InspectorControls>
 
 				{React.createElement(currentTagName, {
-					...blockProps,
+					...getCleanElementProps(),
 					dangerouslySetInnerHTML: { __html: content }
 				})}
 			</>
@@ -1054,13 +1099,13 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 				{src ? (
 					<img
-						{...blockProps}
+						{...getCleanElementProps()}
 						src={src}
 						alt={alt || ''}
 					/>
 				) : (
 					<div
-						{...blockProps}
+						{...getCleanElementProps()}
 						style={{
 							background: '#f0f0f0',
 							border: '1px dashed #ccc',
@@ -1102,8 +1147,125 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		}
 		: blockProps;
 
+	// For text content, render RichText directly with blockProps (no wrapper div)
+	if (currentContentType === 'text') {
+		return (
+			<>
+				<BlockControls>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-file-copy-line" style={{ fontSize: '16px' }} />}
+							label={__('Copy/Paste Styles', 'universal-block')}
+							controls={copyPasteControls}
+						/>
+					</ToolbarGroup>
+					<ToolbarGroup>
+						<ToolbarDropdownMenu
+							icon={<i className="ri-code-s-slash-line" style={{ fontSize: '16px' }} />}
+							label={__('Quick Tag Settings', 'universal-block')}
+							controls={[
+								{
+									title: __('Tag Category', 'universal-block'),
+									icon: <i className="ri-folder-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current category
+									}
+								},
+								{
+									title: `${__('HTML Tag', 'universal-block')}: ${currentTagName}`,
+									icon: <i className="ri-code-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current tag
+									}
+								},
+								{
+									title: `${__('Content Type', 'universal-block')}: ${currentContentType}`,
+									icon: <i className="ri-file-text-line" style={{ fontSize: '14px' }} />,
+									isDisabled: false,
+									onClick: () => {
+										// This will be a submenu - for now show current content type
+									}
+								}
+							]}
+						/>
+					</ToolbarGroup>
+				</BlockControls>
+
+				<InspectorControls>
+					<PanelBody title={__('Block Name', 'universal-block')} initialOpen={false}>
+						<BlockNamePanel
+							blockName={blockName}
+							elementType={elementType}
+							setAttributes={setAttributes}
+							tagName={currentTagName}
+							globalAttrs={globalAttrs}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('CSS Classes', 'universal-block')} initialOpen={false}>
+						<ClassesPanel
+							className={className}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('Tag Settings', 'universal-block')}>
+						<TagControls
+							attributes={{
+								tagName: currentTagName,
+								contentType: currentContentType,
+								selfClosing: currentSelfClosing,
+								...attributes
+							}}
+							setAttributes={setAttributes}
+						/>
+					</PanelBody>
+
+					<PanelBody title={__('Text Content', 'universal-block')} initialOpen={false}>
+						<TextControl
+							label={__('Content', 'universal-block')}
+							value={content || ''}
+							onChange={(newValue) => setAttributes({ content: newValue })}
+							placeholder={__('Enter text content...', 'universal-block')}
+							help={__('Edit the text content. You can also edit directly in the block.', 'universal-block')}
+						/>
+					</PanelBody>
+
+					{currentTagName === 'img' && (
+						<ImagePanel
+							globalAttrs={globalAttrs}
+							setAttributes={setAttributes}
+						/>
+					)}
+
+					<AttributesPanel
+						globalAttrs={globalAttrs}
+						setAttributes={setAttributes}
+					/>
+
+					<DynamicProcessingPanel
+						attributes={attributes}
+						setAttributes={setAttributes}
+						clientId={clientId}
+					/>
+				</InspectorControls>
+
+				<RichText
+					tagName={currentTagName}
+					value={content}
+					onChange={(value) => setAttributes({ content: value })}
+					placeholder={__('Enter your text...', 'universal-block')}
+					{...getCleanElementProps()}
+				/>
+			</>
+		);
+	}
+
+	// For other content types (empty, html without content)
 	return (
-		<div {...finalBlockProps}>
+		<>
 			<BlockControls>
 				<ToolbarGroup>
 					<ToolbarDropdownMenu
@@ -1191,16 +1353,35 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 				{currentContentType === 'html' && (
 					<PanelBody title={__('HTML Content', 'universal-block')} initialOpen={false}>
 						<div style={{ marginBottom: '8px' }}>
-							<label style={{
-								display: 'block',
-								marginBottom: '4px',
-								fontSize: '11px',
-								fontWeight: '500',
-								textTransform: 'uppercase',
-								color: '#1e1e1e'
+							<div style={{
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'space-between',
+								marginBottom: '4px'
 							}}>
-								{__('HTML Content', 'universal-block')}
-							</label>
+								<label style={{
+									fontSize: '11px',
+									fontWeight: '500',
+									textTransform: 'uppercase',
+									color: '#1e1e1e'
+								}}>
+									{__('HTML Content', 'universal-block')}
+								</label>
+								<button
+									onClick={() => window.openUniversalBlockHtmlEditor && window.openUniversalBlockHtmlEditor()}
+									style={{
+										background: 'none',
+										border: 'none',
+										cursor: 'pointer',
+										padding: '4px',
+										display: 'flex',
+										alignItems: 'center'
+									}}
+									title={__('Expand Editor', 'universal-block')}
+								>
+									<i className="ri-window-line" style={{ fontSize: '16px' }}></i>
+								</button>
+							</div>
 							<AceEditor
 								value={content || ''}
 								onChange={(newValue) => setAttributes({ content: newValue })}
@@ -1254,9 +1435,16 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 			</InspectorControls>
 
-
-			{renderContentByType()}
-		</div>
+			{/* For empty elements like hr, render the actual tag */}
+			{(currentContentType === 'empty' && ['hr', 'br'].includes(currentTagName)) ? (
+				React.createElement(currentTagName, getCleanElementProps())
+			) : (
+				/* For other fallback cases (empty HTML placeholder, set tags), wrap in div */
+				<div {...getCleanElementProps()}>
+					{renderContentByType()}
+				</div>
+			)}
+		</>
 	);
 }
 

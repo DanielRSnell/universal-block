@@ -104,15 +104,15 @@ if (node.nodeType === Node.TEXT_NODE) {
 
 ### 2. Element Node Handling
 
-#### Step A: Extract Tag Name and Config
+#### Step A: Extract Tag Name
 
 ```javascript
 const tagName = node.tagName.toLowerCase();
-const config = getTagConfig(tagName);
 ```
 
 - Convert to lowercase for consistency
-- Load tag configuration (contains `selfClosing`, `contentType` defaults)
+- **Note:** All parsed elements are treated as Custom Elements
+- Tag config only checked for dynamic tags (`set`, `loop`, `if`) to detect `selfClosing` flag
 
 #### Step B: Extract Attributes
 
@@ -134,16 +134,16 @@ for (const attr of node.attributes) {
 
 #### Step C: Determine Content Type
 
-Content type detection follows this priority order:
+Content type detection is **universal** and works for ANY element. Detection follows this priority order:
 
-**Priority 1: Config Self-Closing**
+**Priority 1: Dynamic Tags**
 ```javascript
-if (config?.selfClosing === true) {
-    contentType = 'empty';
+if (isDynamicTag) {
+    contentType = config.contentType || 'empty';
 }
 ```
 - Custom dynamic tags (`<set>`, `<loop>`, `<if>`)
-- Explicitly marked as self-closing in config
+- Use their configured content type from tag config
 
 **Priority 2: Void Elements**
 ```javascript
@@ -154,57 +154,49 @@ else if (isVoidElement) {
 - Standard HTML void elements
 - List: `img`, `br`, `hr`, `input`, `meta`, `link`, `area`, `base`, `col`, `embed`, `source`, `track`, `wbr`
 
-**Priority 3: Text-Only Content**
-```javascript
-else if (hasOnlyTextContent(node)) {
-    contentType = 'text';
-    content = node.textContent;
-}
-```
-- No child elements, only text
-- Text extracted via `textContent`
+**Priority 3: Universal Detection Based on Children**
 
-**Priority 4: Block Content (Has Children)**
-```javascript
-else if (hasChildElements(node)) {
-    contentType = 'blocks';
-    innerBlocks = [];
+For all other elements, content type is detected by analyzing actual children:
 
-    for (const childNode of node.childNodes) {
-        const childBlock = nodeToBlock(childNode);
-        if (childBlock) {
-            innerBlocks.push(childBlock);
+```javascript
+else {
+    const hasElements = hasChildElements(node);
+    const hasText = hasTextContent(node);
+
+    if (hasElements && hasText) {
+        // Mixed: text + elements → use HTML
+        contentType = 'html';
+        content = node.innerHTML;
+    } else if (hasElements) {
+        // Only elements → use blocks
+        contentType = 'blocks';
+        for (const childNode of node.childNodes) {
+            const childBlock = nodeToBlock(childNode);
+            if (childBlock) {
+                innerBlocks.push(childBlock);
+            }
         }
+    } else if (hasText) {
+        // Only text → use text
+        contentType = 'text';
+        content = node.textContent;
+    } else {
+        // Empty element
+        contentType = 'html';
+        content = '';
     }
 }
 ```
-- Contains child elements or non-empty text nodes
-- **Recursively processes all children**
-- Maintains exact DOM hierarchy
 
-**Priority 5: Fallback to HTML**
-```javascript
-else {
-    contentType = 'html';
-    content = node.innerHTML;
-}
-```
-- Mixed or complex content
-- Preserves exact HTML structure
+**This detection works for ANY element:**
+- No hardcoded lists of "container" vs "non-container" elements
+- Works with standard HTML (`div`, `p`, `span`, etc.)
+- Works with custom elements (`my-component`, `web-component`, etc.)
+- Works with unknown tags
 
-#### Step D: Apply Config Overrides
+**All parsed blocks are treated as Custom Elements** - the parser is category-agnostic and doesn't rely on the tag configuration system except for dynamic tags.
 
-```javascript
-const finalContentType = config?.contentType || contentType;
-const finalSelfClosing = config?.selfClosing !== undefined
-    ? config.selfClosing
-    : isVoidElement;
-```
-
-- Tag config takes precedence over detected values
-- Ensures custom elements behave consistently
-
-#### Step E: Build Block Attributes
+#### Step D: Build Block Attributes
 
 ```javascript
 const blockAttributes = {
@@ -223,7 +215,7 @@ if (finalContentType === 'text' || finalContentType === 'html') {
 }
 ```
 
-#### Step F: Create Block
+#### Step E: Create Block
 
 ```javascript
 return createBlock('universal/element', blockAttributes, innerBlocks);
@@ -235,26 +227,9 @@ return createBlock('universal/element', blockAttributes, innerBlocks);
 
 ## Helper Functions
 
-### `hasOnlyTextContent(element)`
-
-**Purpose:** Check if element contains ONLY text (no child elements)
-
-```javascript
-function hasOnlyTextContent(element) {
-    for (const child of element.childNodes) {
-        if (child.nodeType === Node.ELEMENT_NODE) {
-            return false;
-        }
-    }
-    return element.textContent.trim().length > 0;
-}
-```
-
-**Returns:** `true` if element has text but no child elements
-
 ### `hasChildElements(element)`
 
-**Purpose:** Check if element has child elements or non-empty text
+**Purpose:** Check if element has any child elements
 
 ```javascript
 function hasChildElements(element) {
@@ -262,6 +237,20 @@ function hasChildElements(element) {
         if (child.nodeType === Node.ELEMENT_NODE) {
             return true;
         }
+    }
+    return false;
+}
+```
+
+**Returns:** `true` if element has any child elements
+
+### `hasTextContent(element)`
+
+**Purpose:** Check if element has any text content (excluding pure whitespace)
+
+```javascript
+function hasTextContent(element) {
+    for (const child of element.childNodes) {
         if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
             return true;
         }
@@ -270,7 +259,7 @@ function hasChildElements(element) {
 }
 ```
 
-**Returns:** `true` if element has children (elements or text)
+**Returns:** `true` if element has non-whitespace text nodes
 
 ## Content Type System
 
@@ -473,17 +462,20 @@ The parser uses 4 content types to represent different element structures:
 
 ## Tag Configuration Integration
 
-The parser integrates with `src/config/tags.js` to handle custom elements:
+**Category-Agnostic Design:** All parsed blocks are treated as Custom Elements. The parser does NOT rely on the tag configuration system for categorization.
+
+**Limited Config Usage:** The parser only uses tag config for dynamic tags:
 
 ```javascript
 const config = getTagConfig(tagName);
+const isDynamicTag = config?.selfClosing === true;
 ```
 
-**Config Properties Used:**
-- `selfClosing` (boolean): Element has no content
-- `contentType` (string): Override detected content type
+**Config Properties Used (Dynamic Tags Only):**
+- `selfClosing` (boolean): Identifies dynamic tags like `<set>`
+- `contentType` (string): Content type for dynamic tags
 
-**Example Config:**
+**Example - Dynamic Tag Config:**
 ```javascript
 {
     set: {
@@ -492,6 +484,12 @@ const config = getTagConfig(tagName);
     }
 }
 ```
+
+**Why This Design:**
+- Tag registry is an **editor feature** for the tag picker UI
+- Parser works independently for any HTML element
+- No need to register every possible HTML tag
+- Custom elements and web components work automatically
 
 ## Consistency Guarantees
 

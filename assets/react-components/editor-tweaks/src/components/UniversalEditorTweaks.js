@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, animate } from 'framer-motion';
 import AceEditor from './AceEditor';
 import RemixIcon from './RemixIcon';
+import HtmlEditorPopup from './HtmlEditorPopup';
 import usePreferencesStore from '../store/usePreferencesStore';
 
 const { __ } = wp.i18n;
@@ -201,6 +202,7 @@ function QuickAddButton({ elementType, tagName, remixIcon, tooltip, onClick }) {
 function QuickAddSection() {
   return (
     <div className="sidebar-quick-add">
+      {/* Layout Elements */}
       <div className="quick-add-group">
         <QuickAddButton
           elementType="container"
@@ -214,8 +216,16 @@ function QuickAddSection() {
           remixIcon="ri-checkbox-blank-line"
           tooltip={__('Div', 'universal-block')}
         />
+        <QuickAddButton
+          elementType="container"
+          tagName="article"
+          remixIcon="ri-article-line"
+          tooltip={__('Article', 'universal-block')}
+        />
       </div>
       <div className="quick-add-divider" />
+
+      {/* Text Elements */}
       <div className="quick-add-group">
         <QuickAddButton
           elementType="heading"
@@ -224,16 +234,67 @@ function QuickAddSection() {
           tooltip={__('Header', 'universal-block')}
         />
         <QuickAddButton
+          elementType="text"
+          tagName="p"
+          remixIcon="ri-text"
+          tooltip={__('Paragraph', 'universal-block')}
+        />
+        <QuickAddButton
           elementType="container"
           tagName="span"
           remixIcon="ri-subtract-line"
           tooltip={__('Span', 'universal-block')}
         />
+      </div>
+      <div className="quick-add-divider" />
+
+      {/* Media Elements */}
+      <div className="quick-add-group">
+        <QuickAddButton
+          elementType="image"
+          tagName="img"
+          remixIcon="ri-image-line"
+          tooltip={__('Image', 'universal-block')}
+        />
+        <QuickAddButton
+          elementType="container"
+          tagName="video"
+          remixIcon="ri-video-line"
+          tooltip={__('Video', 'universal-block')}
+        />
+      </div>
+      <div className="quick-add-divider" />
+
+      {/* Interactive Elements */}
+      <div className="quick-add-group">
         <QuickAddButton
           elementType="text"
-          tagName="p"
-          remixIcon="ri-text"
-          tooltip={__('Text', 'universal-block')}
+          tagName="a"
+          remixIcon="ri-link"
+          tooltip={__('Link', 'universal-block')}
+        />
+        <QuickAddButton
+          elementType="text"
+          tagName="button"
+          remixIcon="ri-radio-button-line"
+          tooltip={__('Button', 'universal-block')}
+        />
+      </div>
+      <div className="quick-add-divider" />
+
+      {/* List Elements */}
+      <div className="quick-add-group">
+        <QuickAddButton
+          elementType="container"
+          tagName="ul"
+          remixIcon="ri-list-unordered"
+          tooltip={__('Unordered List', 'universal-block')}
+        />
+        <QuickAddButton
+          elementType="container"
+          tagName="ol"
+          remixIcon="ri-list-ordered"
+          tooltip={__('Ordered List', 'universal-block')}
         />
       </div>
     </div>
@@ -1119,6 +1180,7 @@ function UniversalEditorTweaks() {
   } = usePreferencesStore();
 
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
+  const [isHtmlEditorOpen, setIsHtmlEditorOpen] = useState(false);
 
   const { editorWidthChange } = useCanvasManager();
   const isLeftSide = sidebarPosition === 'left';
@@ -1137,6 +1199,17 @@ function UniversalEditorTweaks() {
     editorWidthChange(anyDrawerOpen, isLeftSide);
   }, [isDrawerOpen, isSettingsDrawerOpen, isLeftSide, editorWidthChange]);
 
+  // Expose window function to open HTML editor
+  useEffect(() => {
+    window.openUniversalBlockHtmlEditor = () => {
+      setIsHtmlEditorOpen(true);
+    };
+
+    return () => {
+      delete window.openUniversalBlockHtmlEditor;
+    };
+  }, []);
+
   return (
     <div className={`universal-editor-tweaks-container ${isLeftSide ? 'sidebar-left' : 'sidebar-right'}`}>
       <Sidebar
@@ -1154,6 +1227,11 @@ function UniversalEditorTweaks() {
       <SettingsDrawer
         isOpen={isSettingsDrawerOpen}
         onClose={closeSettingsDrawer}
+      />
+
+      <HtmlEditorPopup
+        isOpen={isHtmlEditorOpen}
+        onClose={() => setIsHtmlEditorOpen(false)}
       />
     </div>
   );

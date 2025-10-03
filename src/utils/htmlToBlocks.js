@@ -5,7 +5,7 @@
  */
 
 import { createBlock } from '@wordpress/blocks';
-import { getTagConfig, getDefaultContentType } from '../config/tags';
+import { getTagConfig } from '../config/tags';
 
 /**
  * Parse HTML string and convert to Universal Block structures
@@ -62,18 +62,29 @@ function nodeToBlock(node) {
 		if (!text) return null;
 
 		// Create a paragraph block for standalone text
+		// All parsed blocks are treated as Custom Elements
 		return createBlock('universal/element', {
+			blockName: 'P',
 			tagName: 'p',
+			category: 'custom',
 			contentType: 'text',
 			content: text,
-			selfClosing: false
+			selfClosing: false,
+			uiState: {
+				tagCategory: 'custom',
+				selectedTagName: 'p',
+				selectedContentType: 'text'
+			}
 		});
 	}
 
 	// Handle element nodes
 	if (node.nodeType === Node.ELEMENT_NODE) {
 		const tagName = node.tagName.toLowerCase();
+
+		// Only check config for dynamic tags (set, loop, if) to detect selfClosing flag
 		const config = getTagConfig(tagName);
+		const isDynamicTag = config?.selfClosing === true;
 
 		// Extract attributes
 		const globalAttrs = {};
@@ -83,6 +94,9 @@ function nodeToBlock(node) {
 			if (attr.name === 'class') {
 				// WordPress uses className attribute for CSS classes
 				className = attr.value;
+			} else if (attr.name === 'style') {
+				// Convert style to data-style to avoid breaking Gutenberg preview
+				globalAttrs['data-style'] = attr.value;
 			} else {
 				globalAttrs[attr.name] = attr.value;
 			}
@@ -93,50 +107,69 @@ function nodeToBlock(node) {
 		let content = '';
 		let innerBlocks = [];
 
-		// Check tag config FIRST for self-closing behavior
-		// This is critical for custom elements like <set>, <loop>, <if>
-		// that may have attributes but no content
+		// Void elements (self-closing HTML elements)
 		const voidElements = ['img', 'br', 'hr', 'input', 'meta', 'link', 'area', 'base', 'col', 'embed', 'source', 'track', 'wbr'];
 		const isVoidElement = voidElements.includes(tagName);
 
-		// IMPORTANT: Check config.selfClosing FIRST before any content detection
-		// If tag config explicitly says it's self-closing, skip all content detection
-		if (config?.selfClosing === true) {
-			contentType = 'empty';
+		// Content type detection logic - works for ANY element
+		if (isDynamicTag) {
+			// Dynamic tags like <set> use their configured content type
+			contentType = config.contentType || 'empty';
 		} else if (isVoidElement) {
 			// Standard void elements
 			contentType = 'empty';
-		} else if (hasOnlyTextContent(node)) {
-			// Element contains only text content
-			contentType = 'text';
-			content = node.textContent;
-		} else if (hasChildElements(node)) {
-			// Element has child elements - convert to inner blocks
-			contentType = 'blocks';
-			innerBlocks = [];
-
-			for (const childNode of node.childNodes) {
-				const childBlock = nodeToBlock(childNode);
-				if (childBlock) {
-					innerBlocks.push(childBlock);
-				}
-			}
-		} else {
-			// Mixed content or complex structure - fall back to HTML
+		} else if (tagName === 'svg') {
+			// SVG always uses HTML to preserve markup
 			contentType = 'html';
 			content = node.innerHTML;
+		} else {
+			// Universal content type detection based on actual children
+			const hasElements = hasChildElements(node);
+			const hasText = hasTextContent(node);
+
+			// Container elements that should use blocks for nested elements
+			const containerElements = ['div', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside', 'ul', 'ol', 'li', 'form', 'fieldset', 'blockquote', 'figure', 'button'];
+			const isContainer = containerElements.includes(tagName);
+
+			if (hasElements && isContainer) {
+				// Containers with elements → use blocks (even if mixed with text)
+				contentType = 'blocks';
+				for (const childNode of node.childNodes) {
+					const childBlock = nodeToBlock(childNode);
+					if (childBlock) {
+						innerBlocks.push(childBlock);
+					}
+				}
+			} else if (hasElements) {
+				// Non-container with elements (like <a><span>text</span></a>) → use HTML
+				contentType = 'html';
+				content = node.innerHTML;
+			} else if (hasText) {
+				// Only text → use text
+				contentType = 'text';
+				content = node.textContent;
+			} else {
+				// Empty element (no children, no text)
+				contentType = 'empty';
+			}
 		}
 
-		// Use config defaults if available, otherwise use determined values
-		const finalContentType = config?.contentType || contentType;
+		// Determine if self-closing
 		const finalSelfClosing = config?.selfClosing !== undefined ? config.selfClosing : isVoidElement;
 
-		// Create the block
+		// Create the block - all parsed elements are Custom Elements
 		const blockAttributes = {
+			blockName: tagName.charAt(0).toUpperCase() + tagName.slice(1),
 			tagName,
-			contentType: finalContentType,
+			category: 'custom',
+			contentType,
 			selfClosing: finalSelfClosing,
 			globalAttrs,
+			uiState: {
+				tagCategory: 'custom',
+				selectedTagName: tagName,
+				selectedContentType: contentType
+			}
 		};
 
 		// Add className if present
@@ -145,7 +178,7 @@ function nodeToBlock(node) {
 		}
 
 		// Add content based on type
-		if (finalContentType === 'text' || finalContentType === 'html') {
+		if (contentType === 'text' || contentType === 'html') {
 			blockAttributes.content = content;
 		}
 
@@ -156,21 +189,7 @@ function nodeToBlock(node) {
 }
 
 /**
- * Check if node contains only text content (no child elements)
- * @param {Element} element - DOM element to check
- * @returns {boolean}
- */
-function hasOnlyTextContent(element) {
-	for (const child of element.childNodes) {
-		if (child.nodeType === Node.ELEMENT_NODE) {
-			return false;
-		}
-	}
-	return element.textContent.trim().length > 0;
-}
-
-/**
- * Check if element has child elements
+ * Check if element has any child elements
  * @param {Element} element - DOM element to check
  * @returns {boolean}
  */
@@ -179,7 +198,17 @@ function hasChildElements(element) {
 		if (child.nodeType === Node.ELEMENT_NODE) {
 			return true;
 		}
-		// Also consider non-empty text nodes as content
+	}
+	return false;
+}
+
+/**
+ * Check if element has any text content (excluding pure whitespace)
+ * @param {Element} element - DOM element to check
+ * @returns {boolean}
+ */
+function hasTextContent(element) {
+	for (const child of element.childNodes) {
 		if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
 			return true;
 		}
@@ -187,42 +216,3 @@ function hasChildElements(element) {
 	return false;
 }
 
-/**
- * Get appropriate block name for an element
- * @param {string} tagName - HTML tag name
- * @returns {string} Block name
- */
-function getBlockName(tagName) {
-	// All elements use the universal block
-	return 'universal/element';
-}
-
-/**
- * Smart content type detection based on element structure
- * @param {Element} element - DOM element
- * @returns {string} Content type (text, blocks, html, empty)
- */
-function detectContentType(element) {
-	const tagName = element.tagName.toLowerCase();
-
-	// Void elements
-	const voidElements = ['img', 'br', 'hr', 'input', 'meta', 'link'];
-	if (voidElements.includes(tagName)) {
-		return 'empty';
-	}
-
-	// Text-only elements
-	const textElements = ['p', 'span', 'strong', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a'];
-	if (textElements.includes(tagName) && hasOnlyTextContent(element)) {
-		return 'text';
-	}
-
-	// Container elements with child elements
-	const containerElements = ['div', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside'];
-	if (containerElements.includes(tagName) && hasChildElements(element)) {
-		return 'blocks';
-	}
-
-	// Default to HTML for complex content
-	return 'html';
-}
