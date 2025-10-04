@@ -79,7 +79,7 @@ class Universal_Block_Dynamic_Tag_Parser {
 					$twig_output = '{% set ' . esc_html( $variable ) . ' = "' . esc_html( $value ) . '" %}';
 				}
 
-				return '<!-- Processed: ' . esc_html( $original_tag ) . ' -->' . $twig_output;
+				return $twig_output;
 			}
 
 			// If we can't parse the attributes, return the original
@@ -108,7 +108,7 @@ class Universal_Block_Dynamic_Tag_Parser {
 				$condition = html_entity_decode( $condition, ENT_QUOTES | ENT_HTML5 );
 				$original_tag = $matches[0];
 				$twig_output = '{% if ' . $condition . ' %}';
-				return '<!-- Processed: ' . esc_html( $original_tag ) . ' -->' . $twig_output;
+				return $twig_output;
 			},
 			$content
 		);
@@ -119,7 +119,7 @@ class Universal_Block_Dynamic_Tag_Parser {
 			function( $matches ) {
 				$original_tag = $matches[0];
 				$twig_output = '{% endif %}';
-				return '<!-- Processed: ' . esc_html( $original_tag ) . ' -->' . $twig_output;
+				return $twig_output;
 			},
 			$content
 		);
@@ -143,7 +143,7 @@ class Universal_Block_Dynamic_Tag_Parser {
 				$source = html_entity_decode( $source, ENT_QUOTES | ENT_HTML5 );
 				$original_tag = $matches[0];
 				$twig_output = '{% for item in ' . $source . ' %}';
-				return '<!-- Processed: ' . esc_html( $original_tag ) . ' -->' . $twig_output;
+				return $twig_output;
 			},
 			$content
 		);
@@ -154,7 +154,7 @@ class Universal_Block_Dynamic_Tag_Parser {
 			function( $matches ) {
 				$original_tag = $matches[0];
 				$twig_output = '{% endfor %}';
-				return '<!-- Processed: ' . esc_html( $original_tag ) . ' -->' . $twig_output;
+				return $twig_output;
 			},
 			$content
 		);

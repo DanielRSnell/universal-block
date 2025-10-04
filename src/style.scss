@@ -1,27 +1,2 @@
-/* Intentionally empty — designless. Styles come from theme. */
-
-/* Editor-only styles to fix block inserters visibility */
-/* Hide all block inserter toggle buttons by default */
-.block-editor-inserter__toggle,
-.block-editor-button-block-appender,
-.block-list-appender .block-editor-inserter,
-.wp-block .block-editor-inserter {
-	opacity: 0 !important;
-	pointer-events: none !important;
-}
-
-/* Show inserters only when the immediate parent universal block is selected */
-[data-type="universal/element"].is-selected > .block-list-appender .block-editor-inserter__toggle,
-[data-type="universal/element"].is-selected > .block-editor-default-block-appender .block-editor-inserter__toggle,
-[data-type="universal/element"].is-hovered > .block-list-appender .block-editor-inserter__toggle {
-	opacity: 1 !important;
-	pointer-events: auto !important;
-}
-
-/* Always keep the default block appender visible when inside a selected block */
-[data-type="universal/element"].is-selected .block-editor-default-block-appender {
-	.block-editor-inserter__toggle {
-		opacity: 1 !important;
-		pointer-events: auto !important;
-	}
-}
+/* Simple editor styles for Universal Block */
+/* Note: Appender and editor-specific styles are in /assets/editor/appender.css */

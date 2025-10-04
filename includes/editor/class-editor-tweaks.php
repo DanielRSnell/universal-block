@@ -40,7 +40,7 @@ class EditorTweaks {
 			// Enqueue Universal Block API before React
 			self::enqueue_universal_block_api();
 
-			// Load React component system (bundled with all dependencies)
+			// Load React component system (bundled with all dependencies including Remix Icons)
 			wp_enqueue_style(
 				'universal-editor-tweaks-react',
 				$react_css_file,
@@ -76,6 +76,33 @@ class EditorTweaks {
 			'0.454.0',
 			true
 		);
+
+		// Enqueue Appender CSS (always load for better appender experience)
+		$appender_css_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/editor/appender.css';
+		$appender_css_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/editor/appender.css';
+
+		if ( file_exists( $appender_css_path ) ) {
+			wp_enqueue_style(
+				'universal-block-appender',
+				$appender_css_file,
+				[],
+				UNIVERSAL_BLOCK_VERSION
+			);
+		}
+
+		// Enqueue Appender JS (always load for better appender experience)
+		$appender_js_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/editor/appender.js';
+		$appender_js_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/editor/appender.js';
+
+		if ( file_exists( $appender_js_path ) ) {
+			wp_enqueue_script(
+				'universal-block-appender',
+				$appender_js_file,
+				[ 'wp-dom-ready', 'wp-data' ],
+				UNIVERSAL_BLOCK_VERSION,
+				true
+			);
+		}
 
 		$css_file = UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/editor/editor-tweaks.css';
 		$css_path = UNIVERSAL_BLOCK_PLUGIN_DIR . 'assets/editor/editor-tweaks.css';

@@ -113,8 +113,8 @@ The plugin includes a bidirectional parsing system for 100% consistent HTML ↔ 
 
 ### Attribute Storage
 
-- **globalAttrs**: Object storing all HTML attributes (id, class, style, data-*, aria-*, href, src, etc.)
-- **className**: WordPress-managed classes (separate from globalAttrs.class)
+- **globalAttrs**: Object storing all HTML attributes EXCEPT class (id, style, data-*, aria-*, href, src, etc.)
+- **className**: WordPress-managed classes (official WordPress way, managed by PlainClassesManager)
 - **content**: Text/HTML content (not used for blocks contentType)
 - **tagName**: Current HTML element
 - **contentType**: Content handling mode

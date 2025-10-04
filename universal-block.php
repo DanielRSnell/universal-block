@@ -43,6 +43,17 @@ function universal_block_init() {
 add_action( 'init', 'universal_block_init' );
 
 /**
+ * Remove the automatic wp-block-{name} class from universal/element blocks
+ */
+function universal_block_remove_default_class( $generated_class_name, $block_name ) {
+	if ( 'universal/element' === $block_name ) {
+		return '';
+	}
+	return $generated_class_name;
+}
+add_filter( 'block_default_classname', 'universal_block_remove_default_class', 10, 2 );
+
+/**
  * Load plugin text domain for translations.
  */
 function universal_block_load_textdomain() {
@@ -84,10 +95,26 @@ function universal_block_enqueue_block_editor_assets() {
 		UNIVERSAL_BLOCK_VERSION
 	);
 
+	// Enqueue HTML to Blocks Parser
+	wp_enqueue_script(
+		'universal-html2blocks',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'lib/html2blocks.js',
+		array(),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
+	// Enqueue Blocks to HTML Parser
+	wp_enqueue_script(
+		'universal-blocks2html',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'lib/blocks2html.js',
+		array(),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
 	wp_enqueue_script(
 		'universal-block-editor',
 		UNIVERSAL_BLOCK_PLUGIN_URL . 'build/index.js',
-		array_merge( $asset_file['dependencies'], array( 'ace-editor', 'js-beautify-html', 'emmet-core' ) ),
+		array_merge( $asset_file['dependencies'], array( 'ace-editor', 'js-beautify-html', 'emmet-core', 'universal-html2blocks', 'universal-blocks2html' ) ),
 		UNIVERSAL_BLOCK_VERSION
 	);
 
@@ -115,8 +142,10 @@ add_action( 'enqueue_block_editor_assets', 'universal_block_enqueue_block_editor
  */
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/admin/class-admin.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/editor/class-editor-tweaks.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/editor/class-preview-context.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/parser/class-dynamic-tag-parser.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-api.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-settings-api.php';
 
 /**
  * Initialize editor tweaks.
@@ -124,16 +153,87 @@ require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-api.php';
 EditorTweaks::init();
 
 /**
- * Process Twig and dynamic tags in content after blocks are rendered.
+ * Enqueue preview context to editor.
+ */
+add_action( 'enqueue_block_editor_assets', array( 'Universal_Block_Preview_Context', 'enqueue_preview_context' ) );
+
+/**
+ * Process Twig and dynamic tags in block output
+ * This runs for each individual block as it's rendered
+ */
+add_filter( 'render_block', function( $block_content, $block ) {
+	// Only process our universal/element blocks
+	if ( $block['blockName'] !== 'universal/element' ) {
+		return $block_content;
+	}
+
+	// Only process if Timber is available
+	if ( ! class_exists( '\Timber\Timber' ) ) {
+		return $block_content;
+	}
+
+	// Cache base context (runs once per request)
+	static $base_context = null;
+	if ( $base_context === null ) {
+		$base_context = \Timber\Timber::context();
+	}
+
+	// Start with base context
+	$context = $base_context;
+
+	// If block has a specific context attribute, apply custom filters
+	if ( ! empty( $block['attrs']['blockContext'] ) ) {
+		$block_context_name = sanitize_key( $block['attrs']['blockContext'] );
+
+		/**
+		 * Filter the Timber context for a specific block context
+		 *
+		 * @param array $context The base Timber context
+		 * @param array $block The block data
+		 *
+		 * Example usage in theme:
+		 * add_filter('universal_block/context/product_gallery', function($context, $block) {
+		 *     if (!is_product()) return $context;
+		 *
+		 *     global $product;
+		 *     $context['product']['gallery'] = [...];
+		 *
+		 *     return $context;
+		 * }, 10, 2);
+		 */
+		$context = apply_filters( "universal_block/context/{$block_context_name}", $context, $block );
+	}
+
+	// Process dynamic tags to Twig syntax
+	if ( Universal_Block_Dynamic_Tag_Parser::has_dynamic_tags( $block_content ) ) {
+		$block_content = Universal_Block_Dynamic_Tag_Parser::parse( $block_content );
+	}
+
+	// Compile Twig syntax with context
+	try {
+		return \Timber\Timber::compile_string( $block_content, $context );
+	} catch ( Exception $e ) {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'Universal Block Timber compilation error: ' . $e->getMessage() );
+		}
+		return $block_content;
+	}
+}, 10, 2 );
+
+/**
+ * Also process the_content for classic themes
  * Priority 11 runs after do_blocks() at priority 9.
  */
 add_filter( 'the_content', function( $content ) {
+	// Debug: Always mark that filter is running to verify it's being called
+	$content = '<!-- UNIVERSAL BLOCK FILTER ACTIVE v2024-10-03-02:00 -->' . $content;
+
 	// Only process if Timber is available
 	if ( ! class_exists( '\Timber\Timber' ) ) {
-		return $content;
+		return '<!-- Timber not available -->' . $content;
 	}
 
-	// Debug output
+	// Debug: Mark content as processing
 	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$content = '<!-- DEBUG: the_content filter processing -->' . $content;
 	}
@@ -141,59 +241,41 @@ add_filter( 'the_content', function( $content ) {
 	// Get Timber context
 	$context = \Timber\Timber::context();
 
-	// First, process dynamic tags if present (including set)
-	if ( Universal_Block_Dynamic_Tag_Parser::has_dynamic_tags( $content ) ) {
-		// Debug output
+	// Process dynamic tags to Twig syntax
+	$has_tags = Universal_Block_Dynamic_Tag_Parser::has_dynamic_tags( $content );
+
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		$content = '<!-- DEBUG: has_dynamic_tags = ' . ( $has_tags ? 'true' : 'false' ) . ' -->' . $content;
+	}
+
+	if ( $has_tags ) {
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$content = '<!-- DEBUG: Found dynamic tags -->' . $content;
-			// Log the raw content to see what we're working with
-			error_log( 'Dynamic Tag Parser: Raw content before processing: ' . substr( $content, 0, 500 ) );
+			$content = '<!-- DEBUG: Parsing dynamic tags to Twig -->' . $content;
 		}
 
-		// Validate tag structure first
-		$validation = Universal_Block_Dynamic_Tag_Parser::validate_structure( $content );
+		$content = Universal_Block_Dynamic_Tag_Parser::parse( $content );
 
-		if ( $validation['valid'] ) {
-			// Parse dynamic tags to Twig syntax
-			$content = Universal_Block_Dynamic_Tag_Parser::parse( $content );
-
-			// Debug output after parsing
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'Dynamic Tag Parser: Content after parsing: ' . substr( $content, 0, 500 ) );
-			}
-		} else {
-			// Show validation errors in development
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				$error_messages = implode( ', ', $validation['errors'] );
-				$content = '<!-- Dynamic tag validation errors: ' . esc_html( $error_messages ) . ' -->' . $content;
-			}
-		}
-	} else {
-		// Debug output
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$content = '<!-- DEBUG: No dynamic tags found -->' . $content;
+			$content = '<!-- DEBUG: After parsing -->' . $content;
 		}
 	}
 
-	// Then, compile any Twig syntax (including from dynamic tags and raw Twig)
-	if ( preg_match( '/\{\{.*?\}\}|\{%.*?%\}/', $content ) ) {
+	// Compile Twig syntax with context
+	try {
+		$compiled = \Timber\Timber::compile_string( $content, $context );
+
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$content = '<!-- DEBUG: Found Twig syntax, compiling -->' . $content;
-			error_log( 'Timber: About to compile content with length: ' . strlen( $content ) );
+			$compiled = '<!-- DEBUG: Twig compiled successfully -->' . $compiled;
 		}
 
-		try {
-			$content = \Timber\Timber::compile_string( $content, $context );
-
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'Timber: Successfully compiled, result length: ' . strlen( $content ) );
-			}
-		} catch ( Exception $e ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'Timber compilation error: ' . $e->getMessage() );
-				$content = '<!-- Timber compilation error: ' . esc_html( $e->getMessage() ) . ' -->' . $content;
-			}
+		return $compiled;
+	} catch ( Exception $e ) {
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'Universal Block Timber compilation error: ' . $e->getMessage() );
+			return '<!-- Timber compilation error: ' . esc_html( $e->getMessage() ) . ' -->' . $content;
 		}
+
+		return $content;
 	}
 
 	// Frontend debugging widget when ?debug=true
