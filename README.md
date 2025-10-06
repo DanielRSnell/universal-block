@@ -38,7 +38,7 @@ A designless polymorphic WordPress Gutenberg block that can transform into any H
 - WordPress 6.0+
 - PHP 7.4+
 - Node.js 18+ (for development)
-- Timber/Twig 2.3+ (for dynamic features)
+- Timber 2+ (for dynamic features - installed via Composer)
 
 ## Development
 
