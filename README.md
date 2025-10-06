@@ -416,7 +416,7 @@ Contributions welcome! The codebase is designed to be modular:
 ## Known Limitations
 
 - Custom element tags (with hyphens) require browser support
-- Dynamic tags require Timber plugin
+- Dynamic features require Timber 2+ (Composer library)
 - Preview context detection works in WordPress admin only
 - Block IDs are regenerated on each page load (not persistent)
 
