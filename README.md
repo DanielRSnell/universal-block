@@ -135,7 +135,9 @@ Use Twig control attributes for dynamic templating:
 </div>
 ```
 
-See [docs/writing-dynamic-html.md](docs/writing-dynamic-html.md) for detailed dynamic content documentation.
+**Learn more:**
+- [docs/writing-dynamic-html.md](docs/writing-dynamic-html.md) - Complete dynamic content guide
+- [docs/twig-helpers.md](docs/twig-helpers.md) - Using `fun` and `timber` helper objects
 
 ### Image Management
 
@@ -169,7 +171,7 @@ Both conversions preserve:
 - All attributes (including custom data-* and aria-*)
 - Twig control attributes (loopSource, conditionalExpression, setVariable, etc.)
 
-See [docs/lib-parsers.md](docs/lib-parsers.md) for technical details.
+**Learn more:** [docs/lib-parsers.md](docs/lib-parsers.md)
 
 ## Dynamic Preview System
 
@@ -180,7 +182,7 @@ Test Timber/Twig templates with live data in the editor:
 3. Renders with real Timber context (post, user, custom fields, WooCommerce)
 4. Phase 1: UI toggle implemented (full preview functionality coming soon)
 
-See [docs/dynamic-preview.md](docs/dynamic-preview.md) for configuration details.
+**Learn more:** [docs/dynamic-preview.md](docs/dynamic-preview.md)
 
 ## Architecture
 
@@ -305,6 +307,7 @@ universal-block/
 
 ### Dynamic Features
 - [writing-dynamic-html.md](docs/writing-dynamic-html.md) - Timber/Twig integration guide
+- [twig-helpers.md](docs/twig-helpers.md) - PHP functions and Timber methods in templates
 - [dynamic-preview.md](docs/dynamic-preview.md) - Preview system with live data
 
 ## CLI Tool
@@ -330,17 +333,20 @@ universal-block convert page.html \
   --description="Custom page layout"
 ```
 
-See [package/CONVERT.md](package/CONVERT.md) for complete CLI documentation.
+**Learn more:** [package/CONVERT.md](package/CONVERT.md)
 
-## Timber Context
+## Timber Context & Twig Helpers
 
-Available Twig variables:
+### Available Context Variables
 - `post` - Current post object with meta, thumbnail, etc.
 - `user` - Current user with ID, display_name, etc.
 - `page_data` - Custom page data via filters
+- `fun` - Call any PHP function (e.g., `fun.get_bloginfo('name')`)
+- `timber` - Access Timber methods (e.g., `timber.get_posts()`)
 - Test variables for preview mode
 
-Use with Twig control attributes:
+### Basic Usage
+
 ```html
 <div loopSource="posts" loopVariable="post">
   <h2>{{ post.title }}</h2>
@@ -348,6 +354,21 @@ Use with Twig control attributes:
   <p>By {{ post.author.display_name }}</p>
 </div>
 ```
+
+### Twig Helper Objects
+
+Call WordPress functions and Timber methods directly in templates:
+
+```twig
+{# WordPress functions via fun object #}
+<title>{{ fun.get_bloginfo('name') }}</title>
+<span>${{ fun.number_format(product.price, 2) }}</span>
+
+{# Timber methods via timber object #}
+{% set related = timber.get_posts('category=' ~ post.category.slug) %}
+```
+
+See [docs/twig-helpers.md](docs/twig-helpers.md) for complete guide.
 
 ## Attribute Storage
 
