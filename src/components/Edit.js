@@ -14,6 +14,7 @@ import {
 	PanelBody,
 	SelectControl,
 	TextControl,
+	TextareaControl,
 	Button,
 	ButtonGroup,
 	ToggleControl,
@@ -22,8 +23,8 @@ import {
 import ImageSettingsPanel from './ImageSettingsPanel';
 import LinkSettingsPanel from './LinkSettingsPanel';
 import TagNameToolbar from './TagNameToolbar';
-import DynamicTagSettings from './DynamicTagSettings';
 import PlainClassesManager from './PlainClassesManager';
+import TwigControlsPanel from './TwigControlsPanel';
 
 export default function Edit({ attributes, setAttributes, clientId }) {
 	const {
@@ -33,8 +34,27 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		globalAttrs = {},
 		isSelfClosing = false,
 		blockName = '',
-		blockContext = ''
+		dynamicPreview = false
 	} = attributes;
+
+	// Check if this block is currently selected and get full block data
+	const { isSelected, block } = useSelect(
+		(select) => {
+			const selectedBlockId = select('core/block-editor').getSelectedBlockClientId();
+			return {
+				isSelected: selectedBlockId === clientId,
+				block: select('core/block-editor').getBlock(clientId)
+			};
+		},
+		[clientId]
+	);
+
+	// Debug: Log block when selected
+	useEffect(() => {
+		if (isSelected && block) {
+			console.log(block);
+		}
+	}, [isSelected]);
 
 	// Get className from attributes (WordPress-managed)
 	const className = attributes.className || '';
@@ -72,16 +92,37 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 	const { replaceBlocks, updateBlockAttributes } = useDispatch('core/block-editor');
 
-	// Update block label based on blockName or tagName
+	// Update block label based on blockName, tagName, and Twig controls
 	useEffect(() => {
-		const label = blockName || tagName || 'Element';
+		const {
+			loopSource,
+			conditionalVisibility,
+			setVariable
+		} = attributes;
+
+		// Determine dynamic type
+		let dynamicType = '';
+		if (setVariable) {
+			dynamicType = 'Set';
+		} else if (loopSource) {
+			dynamicType = 'Loop';
+		} else if (conditionalVisibility) {
+			dynamicType = 'If';
+		}
+
+		// Build label: "TagName | Dynamic" or just "TagName" or custom blockName
+		let label = blockName || tagName || 'Element';
+		if (dynamicType) {
+			label = `${tagName} | ${dynamicType}`;
+		}
+
 		// Update the block's metadata to show custom label
 		updateBlockAttributes(clientId, {
 			metadata: {
 				name: label
 			}
 		});
-	}, [blockName, tagName, clientId, updateBlockAttributes]);
+	}, [blockName, tagName, attributes.loopSource, attributes.conditionalVisibility, attributes.setVariable, clientId, updateBlockAttributes]);
 
 	// Open HTML editor popup
 	const openHtmlEditor = () => {
@@ -196,6 +237,18 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						onChange={(value) => setAttributes({ tagName: value })}
 					/>
 				</ToolbarGroup>
+			<ToolbarGroup>
+				<Button
+					icon={
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+							<path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.59 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm6 14c0 .55-2.69 2-6 2s-6-1.45-6-2v-2.23c1.61.78 3.72 1.23 6 1.23s4.39-.45 6-1.23V17zm0-4.55c-1.3.95-3.58 1.55-6 1.55s-4.7-.6-6-1.55V9.64c1.47.83 3.61 1.36 6 1.36s4.53-.53 6-1.36v2.81zM12 9C8.69 9 6 7.55 6 7s2.69-2 6-2 6 1.45 6 2-2.69 2-6 2z" />
+						</svg>
+					}
+					label={__('Toggle Dynamic Preview', 'universal-block')}
+					isPressed={dynamicPreview}
+					onClick={() => setAttributes({ dynamicPreview: !dynamicPreview })}
+				/>
+			</ToolbarGroup>
 			</BlockControls>
 
 			<InspectorControls>
@@ -230,6 +283,17 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						onChange={(value) => setAttributes({ contentType: value })}
 					/>
 
+
+					{contentType === 'text' && (
+						<TextareaControl
+							label={__('Text Content', 'universal-block')}
+							value={content}
+							onChange={(value) => setAttributes({ content: value })}
+							rows={4}
+							help={__('Enter plain text content for this element', 'universal-block')}
+							style={{ marginTop: '12px' }}
+						/>
+					)}
 					<ToggleControl
 						label={__('Self Closing', 'universal-block')}
 						checked={isSelfClosing}
@@ -281,43 +345,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					)}
 				</PanelBody>
 
-				{/* Block Context Panel */}
-				<PanelBody title={__('Block Context', 'universal-block')} initialOpen={false}>
-					{/* Dynamic Tag Settings - for loop, if, set tags */}
-					<DynamicTagSettings
-						tagName={tagName}
-						globalAttrs={globalAttrs}
-						setAttributes={setAttributes}
-					/>
-
-					{/* Show context name input only if NOT a dynamic tag (loop, if, set handle their own context) */}
-					{!['loop', 'if', 'set'].includes(tagName) && (
-						<>
-							<TextControl
-								label={__('Context Name', 'universal-block')}
-								value={blockContext}
-								onChange={(value) => setAttributes({ blockContext: value })}
-								placeholder="e.g., product_gallery, related_posts"
-								help={__('Optional: Set a custom context name to add specific Timber/Twig data to this block. Use lowercase with underscores.', 'universal-block')}
-							/>
-							{blockContext && (
-								<div style={{
-									marginTop: '12px',
-									padding: '12px',
-									background: '#f0f0f0',
-									borderRadius: '4px',
-									fontSize: '12px',
-									fontFamily: 'Monaco, Menlo, monospace'
-								}}>
-									<strong>Filter Hook:</strong><br/>
-									<code style={{ display: 'block', marginTop: '4px', wordBreak: 'break-all' }}>
-										universal_block/context/{blockContext}
-									</code>
-								</div>
-							)}
-						</>
-					)}
-				</PanelBody>
 
 				{/* Image Settings Panel - only show for img tags */}
 				{tagName === 'img' && (
@@ -334,6 +361,12 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 						setAttributes={setAttributes}
 					/>
 				)}
+
+				{/* Twig Controls Panel - available on all blocks */}
+				<TwigControlsPanel
+					attributes={attributes}
+					setAttributes={setAttributes}
+				/>
 			</InspectorControls>
 
 			{/* Render based on content type */}

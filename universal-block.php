@@ -26,6 +26,25 @@ if ( ! class_exists( '\Timber\Timber' ) ) {
 	\Timber\Timber::init();
 }
 
+// Add custom Twig function for calling PHP functions/methods
+// add_filter( 'timber/twig', function( $twig ) {
+// 	// Add fn() function to call any callable
+// 	$twig->addFunction( new \Twig\TwigFunction( 'fn', function( $callable, ...$args ) {
+// 		if ( is_string( $callable ) && strpos( $callable, '::' ) !== false ) {
+// 			// Handle Class::method syntax
+// 			$parts = explode( '::', $callable );
+// 			if ( count( $parts ) === 2 && class_exists( $parts[0] ) && method_exists( $parts[0], $parts[1] ) ) {
+// 				return call_user_func_array( [ $parts[0], $parts[1] ], $args );
+// 			}
+// 		} elseif ( is_callable( $callable ) ) {
+// 			return call_user_func_array( $callable, $args );
+// 		}
+// 		return null;
+// 	} ) );
+
+// 	return $twig;
+// } );
+
 define( 'UNIVERSAL_BLOCK_VERSION', '0.2.1' );
 define( 'UNIVERSAL_BLOCK_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'UNIVERSAL_BLOCK_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -76,6 +95,22 @@ function universal_block_enqueue_block_editor_assets() {
 		'ace-editor',
 		UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/global/ace/src-min-noconflict/ace.js',
 		array(),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
+	// Enqueue Ace Emmet extension
+	wp_enqueue_script(
+		'ace-ext-emmet',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/global/ace/src-min-noconflict/ext-emmet.js',
+		array( 'ace-editor' ),
+		UNIVERSAL_BLOCK_VERSION
+	);
+
+	// Enqueue Ace Beautify extension
+	wp_enqueue_script(
+		'ace-ext-beautify',
+		UNIVERSAL_BLOCK_PLUGIN_URL . 'assets/global/ace/src-min-noconflict/ext-beautify.js',
+		array( 'ace-editor' ),
 		UNIVERSAL_BLOCK_VERSION
 	);
 
@@ -146,6 +181,8 @@ require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/editor/class-preview-context
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/parser/class-dynamic-tag-parser.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-api.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-settings-api.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/blocks/class-block-processor.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/twig/class-twig-helpers.php';
 
 /**
  * Initialize editor tweaks.
@@ -161,237 +198,25 @@ add_action( 'enqueue_block_editor_assets', array( 'Universal_Block_Preview_Conte
  * Process Twig and dynamic tags in block output
  * This runs for each individual block as it's rendered
  */
-add_filter( 'render_block', function( $block_content, $block ) {
-	// Only process our universal/element blocks
-	if ( $block['blockName'] !== 'universal/element' ) {
-		return $block_content;
+add_filter( 'render_block', array( 'Universal_Block_Processor', 'process_block' ), 10, 2 );
+
+/**
+ * Disable WordPress filters that break Twig syntax
+ * Priority 8 runs before most content filters
+ */
+add_filter( 'the_content', function( $content ) {
+	// Check if content has Twig syntax or DSL tags
+	if ( preg_match( '/\{[{%].*?[}%]\}|<(set|loop|if)\s+/i', $content ) ) {
+		// Remove filters that break Twig syntax
+		remove_filter( 'the_content', 'wptexturize' );
+		remove_filter( 'the_content', 'wpautop' );
+		remove_filter( 'the_content', 'wp_filter_content_tags' );
 	}
-
-	// Only process if Timber is available
-	if ( ! class_exists( '\Timber\Timber' ) ) {
-		return $block_content;
-	}
-
-	// Cache base context (runs once per request)
-	static $base_context = null;
-	if ( $base_context === null ) {
-		$base_context = \Timber\Timber::context();
-	}
-
-	// Start with base context
-	$context = $base_context;
-
-	// If block has a specific context attribute, apply custom filters
-	if ( ! empty( $block['attrs']['blockContext'] ) ) {
-		$block_context_name = sanitize_key( $block['attrs']['blockContext'] );
-
-		/**
-		 * Filter the Timber context for a specific block context
-		 *
-		 * @param array $context The base Timber context
-		 * @param array $block The block data
-		 *
-		 * Example usage in theme:
-		 * add_filter('universal_block/context/product_gallery', function($context, $block) {
-		 *     if (!is_product()) return $context;
-		 *
-		 *     global $product;
-		 *     $context['product']['gallery'] = [...];
-		 *
-		 *     return $context;
-		 * }, 10, 2);
-		 */
-		$context = apply_filters( "universal_block/context/{$block_context_name}", $context, $block );
-	}
-
-	// Process dynamic tags to Twig syntax
-	if ( Universal_Block_Dynamic_Tag_Parser::has_dynamic_tags( $block_content ) ) {
-		$block_content = Universal_Block_Dynamic_Tag_Parser::parse( $block_content );
-	}
-
-	// Compile Twig syntax with context
-	try {
-		return \Timber\Timber::compile_string( $block_content, $context );
-	} catch ( Exception $e ) {
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( 'Universal Block Timber compilation error: ' . $e->getMessage() );
-		}
-		return $block_content;
-	}
-}, 10, 2 );
+	return $content;
+}, 8 );
 
 /**
  * Also process the_content for classic themes
  * Priority 11 runs after do_blocks() at priority 9.
  */
-add_filter( 'the_content', function( $content ) {
-	// Debug: Always mark that filter is running to verify it's being called
-	$content = '<!-- UNIVERSAL BLOCK FILTER ACTIVE v2024-10-03-02:00 -->' . $content;
-
-	// Only process if Timber is available
-	if ( ! class_exists( '\Timber\Timber' ) ) {
-		return '<!-- Timber not available -->' . $content;
-	}
-
-	// Debug: Mark content as processing
-	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-		$content = '<!-- DEBUG: the_content filter processing -->' . $content;
-	}
-
-	// Get Timber context
-	$context = \Timber\Timber::context();
-
-	// Process dynamic tags to Twig syntax
-	$has_tags = Universal_Block_Dynamic_Tag_Parser::has_dynamic_tags( $content );
-
-	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-		$content = '<!-- DEBUG: has_dynamic_tags = ' . ( $has_tags ? 'true' : 'false' ) . ' -->' . $content;
-	}
-
-	if ( $has_tags ) {
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$content = '<!-- DEBUG: Parsing dynamic tags to Twig -->' . $content;
-		}
-
-		$content = Universal_Block_Dynamic_Tag_Parser::parse( $content );
-
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$content = '<!-- DEBUG: After parsing -->' . $content;
-		}
-	}
-
-	// Compile Twig syntax with context
-	try {
-		$compiled = \Timber\Timber::compile_string( $content, $context );
-
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$compiled = '<!-- DEBUG: Twig compiled successfully -->' . $compiled;
-		}
-
-		return $compiled;
-	} catch ( Exception $e ) {
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( 'Universal Block Timber compilation error: ' . $e->getMessage() );
-			return '<!-- Timber compilation error: ' . esc_html( $e->getMessage() ) . ' -->' . $content;
-		}
-
-		return $content;
-	}
-
-	// Frontend debugging widget when ?debug=true
-	if ( isset( $_GET['debug'] ) && $_GET['debug'] === 'true' ) {
-		// Add context to itself for debugging
-		$context['state'] = $context;
-
-		// Remove post content to save space in debug widget
-		if ( isset( $context['state']['post'] ) && isset( $context['state']['post']->content ) ) {
-			$context['state']['post']->content = null;
-		}
-
-		// Add ACF fields if acf=true and ACF is available
-		if ( isset( $_GET['acf'] ) && $_GET['acf'] === 'true' && function_exists( 'get_fields' ) ) {
-			if ( isset( $context['state']['post'] ) && isset( $context['state']['post']->ID ) ) {
-				$context['state']['post']->meta = get_fields( $context['state']['post']->ID );
-			}
-		}
-
-		// Output context JSON and widget in footer
-		add_action( 'wp_footer', function() use ( $context ) {
-			// Output context as JSON in script tag
-			?>
-			<script id="context-debug" type="application/json">
-<?php echo wp_json_encode( $context['state'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ); ?>
-</script>
-
-			<!-- Debug Widget HTML -->
-			<div id="universal-block-debug-widget">
-				<div class="debug-widget-header">
-					<h3 class="debug-widget-title">🔍 Timber Context</h3>
-					<div class="debug-widget-controls">
-						<button class="debug-widget-btn" id="debug-widget-minimize" title="Minimize">−</button>
-						<button class="debug-widget-btn" id="debug-widget-close" title="Close">×</button>
-					</div>
-				</div>
-				<div class="debug-widget-content">
-					<div id="debug-ace-editor"></div>
-				</div>
-			</div>
-
-			<style>
-				#universal-block-debug-widget {
-					position: fixed;
-					bottom: 20px;
-					right: 20px;
-					width: 400px;
-					max-height: 600px;
-					background: #1e1e1e;
-					border: 1px solid #444;
-					border-radius: 8px;
-					box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-					z-index: 999999;
-					display: flex;
-					flex-direction: column;
-					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-				}
-				#universal-block-debug-widget.minimized {
-					width: auto;
-					height: auto;
-					max-height: none;
-				}
-				#universal-block-debug-widget.minimized .debug-widget-content {
-					display: none;
-				}
-				.debug-widget-header {
-					padding: 12px 16px;
-					background: #2d2d2d;
-					border-bottom: 1px solid #444;
-					border-radius: 8px 8px 0 0;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-					cursor: move;
-					user-select: none;
-				}
-				.debug-widget-title {
-					color: #fff;
-					font-size: 14px;
-					font-weight: 600;
-					margin: 0;
-				}
-				.debug-widget-controls {
-					display: flex;
-					gap: 8px;
-				}
-				.debug-widget-btn {
-					background: transparent;
-					border: none;
-					color: #999;
-					cursor: pointer;
-					padding: 4px;
-					font-size: 16px;
-					line-height: 1;
-					transition: color 0.2s;
-				}
-				.debug-widget-btn:hover {
-					color: #fff;
-				}
-				.debug-widget-content {
-					flex: 1;
-					overflow: hidden;
-					display: flex;
-					flex-direction: column;
-				}
-				#debug-ace-editor {
-					flex: 1;
-					min-height: 400px;
-				}
-			</style>
-
-			<script src="<?php echo esc_url( plugin_dir_url( __FILE__ ) . 'assets/global/ace/src-min-noconflict/ace.js' ); ?>"></script>
-			<script src="<?php echo esc_url( plugin_dir_url( __FILE__ ) . 'assets/debug-widget.js' ); ?>"></script>
-			<?php
-		}, 999 );
-	}
-
-	return $content;
-}, 11 );
+add_filter( 'the_content', array( 'Universal_Block_Processor', 'process_content' ), 11 );

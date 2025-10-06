@@ -14,6 +14,7 @@ const { select, dispatch } = wp.data;
 export default function HtmlEditorPopup({ isOpen, onClose }) {
   const [htmlContent, setHtmlContent] = useState('');
   const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [editorRef, setEditorRef] = useState(null);
 
   // Get selected block and its content when popup opens
   useEffect(() => {
@@ -55,6 +56,28 @@ export default function HtmlEditorPopup({ isOpen, onClose }) {
     });
 
     onClose();
+  };
+
+  // Beautify HTML
+  const handleBeautify = () => {
+    if (!window.html_beautify) {
+      console.error('html_beautify not available');
+      return;
+    }
+
+    try {
+      const beautified = window.html_beautify(htmlContent, {
+        indent_size: 2,
+        indent_char: ' ',
+        max_preserve_newlines: 2,
+        preserve_newlines: true,
+        indent_inner_html: true,
+        wrap_line_length: 0
+      });
+      setHtmlContent(beautified);
+    } catch (e) {
+      console.error('Beautification failed:', e);
+    }
   };
 
   // Handle escape key
@@ -132,6 +155,27 @@ export default function HtmlEditorPopup({ isOpen, onClose }) {
             </h2>
 
             <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleBeautify}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#333',
+                  color: '#fff',
+                  border: '1px solid #555',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title={__('Beautify HTML (Ctrl+Alt+F)', 'universal-block')}
+              >
+                <RemixIcon name="ri-magic-line" size={16} color="#fff" />
+                {__('Beautify', 'universal-block')}
+              </button>
+
               <button
                 onClick={handleSave}
                 style={{

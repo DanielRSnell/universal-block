@@ -24,6 +24,30 @@ $global_attrs = $attributes['globalAttrs'] ?? array();
 $is_self_closing = $attributes['isSelfClosing'] ?? false;
 $class_name = $attributes['className'] ?? '';
 
+// Extract Twig control attributes (they can be in attributes or globalAttrs)
+// Check both camelCase (from block attributes) and lowercase (from HTML import in globalAttrs)
+$set_variable = $attributes['setVariable'] ?? $global_attrs['setvariable'] ?? '';
+$set_expression = $attributes['setExpression'] ?? $global_attrs['setexpression'] ?? '';
+$loop_source = $attributes['loopSource'] ?? $global_attrs['loopsource'] ?? '';
+$loop_variable = $attributes['loopVariable'] ?? $global_attrs['loopvariable'] ?? 'item';
+$conditional_visibility = $attributes['conditionalVisibility'] ?? ( isset( $global_attrs['conditionalvisibility'] ) && ( $global_attrs['conditionalvisibility'] === 'true' || $global_attrs['conditionalvisibility'] === true ) );
+$conditional_expression = $attributes['conditionalExpression'] ?? $global_attrs['conditionalexpression'] ?? '';
+
+// Output Set Variable Twig before element
+if ( ! empty( $set_variable ) && ! empty( $set_expression ) ) {
+	echo '{% set ' . $set_variable . ' = ' . $set_expression . ' %}' . "\n";
+}
+
+// Output Conditional Visibility opening tag
+if ( $conditional_visibility && ! empty( $conditional_expression ) ) {
+	echo '{% if ' . $conditional_expression . ' %}' . "\n";
+}
+
+// Output Loop opening tag
+if ( ! empty( $loop_source ) ) {
+	echo '{% for ' . $loop_variable . ' in ' . $loop_source . ' %}' . "\n";
+}
+
 // Start with empty attributes array
 $attrs = array();
 
@@ -43,6 +67,16 @@ if ( ! empty( $class_name ) ) {
 	$attrs['class'] = esc_attr( $class_name );
 }
 
+// Twig control attribute names (to filter out from HTML rendering)
+$twig_control_attrs = array(
+	'loopsource',
+	'loopvariable',
+	'conditionalvisibility',
+	'conditionalexpression',
+	'setvariable',
+	'setexpression'
+);
+
 // Add/merge global attributes
 foreach ( $global_attrs as $attr_name => $attr_value ) {
 	if ( empty( $attr_name ) || empty( $attr_value ) ) {
@@ -57,7 +91,19 @@ foreach ( $global_attrs as $attr_name => $attr_value ) {
 		continue;
 	}
 
-	if ( $attr_name === 'href' || $attr_name === 'src' ) {
+	// Skip Twig control attributes - they should not be rendered as HTML attributes
+	if ( in_array( strtolower( $attr_name ), $twig_control_attrs, true ) ) {
+		continue;
+	}
+
+	// Don't escape Twig variables - they need to be compiled first
+	// Check if attribute contains Twig syntax {{ }} or {% %}
+	$has_twig = preg_match( '/\{\{.*?\}\}|\{%.*?%\}/', $attr_value );
+
+	if ( $has_twig ) {
+		// Leave Twig syntax as-is, it will be compiled by the_content filter
+		$attrs[ $attr_name ] = $attr_value;
+	} elseif ( $attr_name === 'href' || $attr_name === 'src' ) {
 		$attrs[ $attr_name ] = esc_url( $attr_value );
 	} else {
 		$attrs[ $attr_name ] = esc_attr( $attr_value );
@@ -100,4 +146,14 @@ if ( $is_self_closing ) {
 	echo '<' . esc_attr( $tag_name ) . $attr_string . ' />';
 } else {
 	echo '<' . esc_attr( $tag_name ) . $attr_string . '>' . $final_content . '</' . esc_attr( $tag_name ) . '>';
+}
+
+// Output Loop closing tag (in reverse order)
+if ( ! empty( $loop_source ) ) {
+	echo "\n" . '{% endfor %}';
+}
+
+// Output Conditional Visibility closing tag
+if ( $conditional_visibility && ! empty( $conditional_expression ) ) {
+	echo "\n" . '{% endif %}';
 }

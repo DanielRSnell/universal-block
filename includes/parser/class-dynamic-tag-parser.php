@@ -44,46 +44,24 @@ class Universal_Block_Dynamic_Tag_Parser {
 
 		$content = preg_replace_callback( $pattern, function( $matches ) {
 			$attributes = $matches[1];
-			$original_tag = $matches[0];
 
 			// Extract variable and value using separate patterns
+			// Support both 'value' and 'source' as aliases
 			preg_match( '/variable=["\']([^"\']+)["\']/i', $attributes, $var_matches );
-			preg_match( '/value=["\']([^"\']+)["\']/i', $attributes, $val_matches );
+			// Add 's' modifier to make . match newlines for multi-line attribute values
+			preg_match( '/(value|source)=(["\'])(.+?)\2(?=\s|\/|$)/is', $attributes, $val_matches );
 
-			if ( ! empty( $var_matches[1] ) && ! empty( $val_matches[1] ) ) {
+			if ( ! empty( $var_matches[1] ) && ! empty( $val_matches[3] ) ) {
 				$variable = trim( $var_matches[1] );
-				$value = trim( $val_matches[1] );
+				$value = trim( $val_matches[3] );
 
-				// Decode HTML entities in the value
-				$value = html_entity_decode( $value, ENT_QUOTES | ENT_HTML5 );
-
-				// Debug output
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-					error_log( 'Dynamic Tag Parser: Found set tag - variable: ' . $variable . ', value: ' . $value );
-				}
-
-				// Validate variable name (letters, numbers, underscores only)
-				if ( ! preg_match( '/^[a-zA-Z_][a-zA-Z0-9_]*$/', $variable ) ) {
-					return '<!-- Invalid variable name: ' . esc_html( $variable ) . ' -->';
-				}
-
-				// Handle different value types
-				if ( preg_match( '/^\[.*\]$/', $value ) ) {
-					// Array syntax: ["item1", "item2", "item3"]
-					$twig_output = '{% set ' . esc_html( $variable ) . ' = ' . $value . ' %}';
-				} elseif ( is_numeric( $value ) ) {
-					// Numeric value
-					$twig_output = '{% set ' . esc_html( $variable ) . ' = ' . $value . ' %}';
-				} else {
-					// String value (default)
-					$twig_output = '{% set ' . esc_html( $variable ) . ' = "' . esc_html( $value ) . '" %}';
-				}
-
-				return $twig_output;
+				// Simple string replacement - no escaping, no decoding
+				// Just convert directly to Twig syntax
+				return '{% set ' . $variable . ' = ' . $value . ' %}';
 			}
 
 			// If we can't parse the attributes, return the original
-			return $original_tag;
+			return $matches[0];
 		}, $content );
 
 		// Remove any closing </set> tags
@@ -99,30 +77,19 @@ class Universal_Block_Dynamic_Tag_Parser {
 	 * @return string The parsed content
 	 */
 	private static function parse_if_tags( $content ) {
-		// Match opening <if> tags with source attribute
+		// Match opening <if> tags with source or condition attribute (and any other attributes)
 		$content = preg_replace_callback(
-			'/<if\s+source=["\']([^"\']+)["\']\s*>/i',
+			'/<if\s+[^>]*?(source|condition)=["\']([^"\']+)["\'][^>]*?>/i',
 			function( $matches ) {
-				$condition = trim( $matches[1] );
-				// Decode HTML entities in the condition
-				$condition = html_entity_decode( $condition, ENT_QUOTES | ENT_HTML5 );
-				$original_tag = $matches[0];
-				$twig_output = '{% if ' . $condition . ' %}';
-				return $twig_output;
+				$condition = trim( $matches[2] );
+				// Simple string replacement - no escaping, no decoding
+				return '{% if ' . $condition . ' %}';
 			},
 			$content
 		);
 
 		// Match closing </if> tags
-		$content = preg_replace_callback(
-			'/<\/if\s*>/i',
-			function( $matches ) {
-				$original_tag = $matches[0];
-				$twig_output = '{% endif %}';
-				return $twig_output;
-			},
-			$content
-		);
+		$content = preg_replace( '/<\/if\s*>/i', '{% endif %}', $content );
 
 		return $content;
 	}
@@ -139,25 +106,26 @@ class Universal_Block_Dynamic_Tag_Parser {
 			'/<loop\s+source=["\']([^"\']+)["\']\s*>/i',
 			function( $matches ) {
 				$source = trim( $matches[1] );
-				// Decode HTML entities in the source
-				$source = html_entity_decode( $source, ENT_QUOTES | ENT_HTML5 );
-				$original_tag = $matches[0];
-				$twig_output = '{% for item in ' . $source . ' %}';
-				return $twig_output;
+
+				// If source starts with "for ", strip it (allow both syntaxes)
+				if ( preg_match( '/^for\s+(.+)$/i', $source, $for_matches ) ) {
+					$source = $for_matches[1];
+				}
+
+				// If source doesn't contain " in ", assume it's just the collection name
+				// and default to "item in {source}"
+				if ( stripos( $source, ' in ' ) === false ) {
+					return '{% for item in ' . $source . ' %}';
+				} else {
+					// Source already has "item in collection" format
+					return '{% for ' . $source . ' %}';
+				}
 			},
 			$content
 		);
 
 		// Match closing </loop> tags
-		$content = preg_replace_callback(
-			'/<\/loop\s*>/i',
-			function( $matches ) {
-				$original_tag = $matches[0];
-				$twig_output = '{% endfor %}';
-				return $twig_output;
-			},
-			$content
-		);
+		$content = preg_replace( '/<\/loop\s*>/i', '{% endfor %}', $content );
 
 		return $content;
 	}

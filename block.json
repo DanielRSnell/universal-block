@@ -46,17 +46,33 @@
 			"type": "boolean",
 			"default": false
 		},
-		"uiState": {
-			"type": "object",
-			"default": {
-				"tagCategory": "common",
-				"selectedTagName": "",
-				"selectedContentType": ""
-			}
-		},
-		"blockContext": {
+		"loopSource": {
 			"type": "string",
 			"default": ""
+		},
+		"loopVariable": {
+			"type": "string",
+			"default": "item"
+		},
+		"conditionalVisibility": {
+			"type": "boolean",
+			"default": false
+		},
+		"conditionalExpression": {
+			"type": "string",
+			"default": ""
+		},
+		"setVariable": {
+			"type": "string",
+			"default": ""
+		},
+		"setExpression": {
+			"type": "string",
+			"default": ""
+		},
+		"dynamicPreview": {
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"supports": {

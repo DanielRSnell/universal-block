@@ -32,8 +32,35 @@ function AceEditor({ value, onChange, mode = 'html', theme = 'monokai', height =
       useSoftTabs: true
     });
 
-    // Set initial value
-    editor.setValue(value || '', -1);
+    // Enable Emmet extension if available
+    if (window.ace.require && mode === 'html') {
+      try {
+        const emmet = window.ace.require('ace/ext/emmet');
+        editor.setOption('enableEmmet', true);
+      } catch (e) {
+        console.warn('Emmet extension not available:', e);
+      }
+    }
+
+    // Beautify HTML on load if available
+    let initialValue = value || '';
+    if (window.html_beautify && initialValue && mode === 'html') {
+      try {
+        initialValue = window.html_beautify(initialValue, {
+          indent_size: 2,
+          indent_char: ' ',
+          max_preserve_newlines: 2,
+          preserve_newlines: true,
+          indent_inner_html: true,
+          wrap_line_length: 0
+        });
+      } catch (e) {
+        console.warn('Initial beautification failed:', e);
+      }
+    }
+
+    // Set initial value (beautified if HTML)
+    editor.setValue(initialValue, -1);
 
     // Listen for changes
     editor.session.on('change', () => {
@@ -43,7 +70,7 @@ function AceEditor({ value, onChange, mode = 'html', theme = 'monokai', height =
       }
     });
 
-    // Add beautify command
+    // Add beautify command for manual use
     if (window.html_beautify) {
       editor.commands.addCommand({
         name: 'beautifyHTML',
@@ -56,7 +83,8 @@ function AceEditor({ value, onChange, mode = 'html', theme = 'monokai', height =
               indent_char: ' ',
               max_preserve_newlines: 2,
               preserve_newlines: true,
-              indent_inner_html: true
+              indent_inner_html: true,
+              wrap_line_length: 0
             });
             editor.setValue(beautified, -1);
           } catch (e) {
