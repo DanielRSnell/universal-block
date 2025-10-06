@@ -113,29 +113,29 @@ Use for self-closing elements:
 
 ### Dynamic Content with Timber
 
-Use dynamic tags for templating with Twig syntax:
+Use Twig control attributes for dynamic templating:
 
 #### Set Variables
 ```html
-<set variable="featured_image" value="post.thumbnail.src" />
+<div setVariable="featured_image" setExpression="post.thumbnail.src"></div>
 ```
 
 #### Conditional Rendering
 ```html
-<if source="user.ID > 0">
+<div conditionalExpression="user.ID > 0">
   <p>Welcome back, {{ user.display_name }}!</p>
-</if>
+</div>
 ```
 
 #### Loops
 ```html
-<loop source="item in posts">
+<div loopSource="posts" loopVariable="item">
   <h2>{{ item.title }}</h2>
   <p>{{ item.excerpt }}</p>
-</loop>
+</div>
 ```
 
-See [docs/block-context.md](docs/block-context.md) for detailed dynamic content documentation.
+See [docs/writing-dynamic-html.md](docs/writing-dynamic-html.md) for detailed dynamic content documentation.
 
 ### Image Management
 
@@ -167,20 +167,20 @@ When tag is `<a>`, the Link Settings Panel appears:
 Both conversions preserve:
 - Exact DOM structure
 - All attributes (including custom data-* and aria-*)
-- Dynamic tags (loop, if, set)
+- Twig control attributes (loopSource, conditionalExpression, setVariable, etc.)
 
-See [docs/parsers/](docs/parsers/) for technical details.
+See [docs/lib-parsers.md](docs/lib-parsers.md) for technical details.
 
-## Preview Context System
+## Dynamic Preview System
 
-Test dynamic Timber/Twig templates with real data:
+Test Timber/Twig templates with live data in the editor:
 
-1. Click **Preview Settings** (eye icon) in sidebar
-2. **Auto-detect**: Automatically uses current editing context
-3. **Manual Config**: Select post type, specific post, taxonomy, or WooCommerce page
-4. Previews render with real Timber context (post, user, custom fields)
+1. Click the **Database icon** in block toolbar to toggle dynamic preview
+2. Preview uses `window.universal.preview` context with current page data
+3. Renders with real Timber context (post, user, custom fields, WooCommerce)
+4. Phase 1: UI toggle implemented (full preview functionality coming soon)
 
-See [docs/preview-context.md](docs/preview-context.md) for configuration details.
+See [docs/dynamic-preview.md](docs/dynamic-preview.md) for configuration details.
 
 ## Architecture
 
@@ -211,21 +211,23 @@ Configuration: [src/config/tags/](src/config/tags/)
 
 **UI Components**:
 - [Edit.js](src/components/Edit.js) - Main editor with content type routing
-- [PlainClassesManager.js](src/components/PlainClassesManager.js) - Tokenized class management
-- [ImageSettingsPanel.js](src/components/ImageSettingsPanel.js) - Image attribute controls
-- [LinkSettingsPanel.js](src/components/LinkSettingsPanel.js) - Link management
-- [TagNameToolbar.js](src/components/TagNameToolbar.js) - Tag selection UI
-- [DynamicTagSettings.js](src/components/DynamicTagSettings.js) - Loop/if/set configuration
+- [TagControls.js](src/components/TagControls.js) - Tag selection UI
+- [ClassesPanel.js](src/components/ClassesPanel.js) - CSS class management
+- [AttributesPanel.js](src/components/AttributesPanel.js) - Global attributes editor
+- [TwigControlsPanel.js](src/components/TwigControlsPanel.js) - Loop/if/set configuration
+- [AceEditor.js](src/components/AceEditor.js) - HTML editor with Emmet support
 
 **Utilities**:
 - [lib/html2blocks.js](lib/html2blocks.js) - HTML → Blocks parser
 - [lib/blocks2html.js](lib/blocks2html.js) - Blocks → HTML serializer
+- [htmlToBlocks.js](src/utils/htmlToBlocks.js) - Parser integration
+- [blocksToHtml.js](src/utils/blocksToHtml.js) - Serializer integration
 
 **PHP Backend**:
 - [includes/blocks/render-element.php](includes/blocks/render-element.php) - Block rendering
-- [includes/parser/class-dynamic-tag-parser.php](includes/parser/class-dynamic-tag-parser.php) - Dynamic tag processing
-- [includes/api/class-preview-api.php](includes/api/class-preview-api.php) - Preview API
-- [includes/editor/class-preview-context.php](includes/editor/class-preview-context.php) - Context detection
+- [includes/parser/class-dynamic-tag-parser.php](includes/parser/class-dynamic-tag-parser.php) - Twig attribute processing
+- [includes/blocks/class-block-processor.php](includes/blocks/class-block-processor.php) - Block tree processing
+- [includes/twig/class-twig-helpers.php](includes/twig/class-twig-helpers.php) - Twig utility functions
 
 ## File Structure
 
@@ -234,50 +236,53 @@ universal-block/
 ├── src/                              # React source files
 │   ├── components/                   # UI components
 │   │   ├── Edit.js                  # Main editor component
-│   │   ├── PlainClassesManager.js   # Class management UI
-│   │   ├── ImageSettingsPanel.js    # Image controls
-│   │   ├── LinkSettingsPanel.js     # Link controls
-│   │   ├── TagNameToolbar.js        # Tag selector
-│   │   └── DynamicTagSettings.js    # Dynamic tag inputs
-│   ├── config/tags/                  # Tag configuration (legacy)
-│   ├── transforms/                   # Block transforms (legacy)
+│   │   ├── TagControls.js           # Tag selection UI
+│   │   ├── ClassesPanel.js          # CSS class management
+│   │   ├── AttributesPanel.js       # Attributes editor
+│   │   ├── TwigControlsPanel.js     # Twig configuration
+│   │   └── AceEditor.js             # HTML editor
+│   ├── config/tags/                  # Tag configuration
+│   │   ├── index.js                 # Tag definitions
+│   │   └── categories.js            # Category groupings
+│   ├── utils/                        # Utility functions
+│   │   ├── htmlToBlocks.js          # HTML parser integration
+│   │   └── blocksToHtml.js          # HTML serializer integration
 │   └── index.js                      # Main entry point
 ├── includes/                         # PHP backend
 │   ├── blocks/                       # Block rendering
-│   │   └── render-element.php       # Server-side render
-│   ├── parser/                       # Dynamic tag parser
+│   │   ├── render-element.php       # Server-side render
+│   │   └── class-block-processor.php # Block tree processing
+│   ├── parser/                       # Twig attribute parser
 │   │   └── class-dynamic-tag-parser.php
-│   ├── api/                          # REST API endpoints
-│   │   ├── class-preview-api.php    # Preview endpoint
-│   │   └── class-preview-settings-api.php
+│   ├── twig/                         # Twig utilities
+│   │   └── class-twig-helpers.php   # Helper functions
 │   ├── editor/                       # Editor customizations
-│   │   ├── class-editor-tweaks.php  # Editor enhancements
-│   │   └── class-preview-context.php # Context detection
+│   │   └── class-editor-tweaks.php  # Editor enhancements
 │   └── admin/                        # Admin functionality
 ├── assets/                           # Static assets
-│   ├── editor/                       # Editor-specific assets
-│   │   ├── appender.css             # Block appender styles
-│   │   └── appender.js              # Block appender script
 │   ├── global/                       # Third-party libraries
 │   │   ├── ace/                     # Ace Editor
 │   │   ├── emmet/                   # Emmet abbreviations
 │   │   └── beautify/                # HTML beautifier
 │   └── react-components/             # Standalone React apps
-│       └── editor-tweaks/           # Sidebar enhancements
-│           ├── HtmlImportDrawer.js  # HTML import UI
-│           ├── AttributesEditorPopup.js # Attributes editor
-│           └── PreviewSettingsDrawer.js # Preview config
+│       └── editor-tweaks/           # Enhanced sidebar UI
+│           ├── HtmlEditorPopup.js   # HTML editor modal
+│           └── AceEditor.js         # Ace wrapper component
 ├── lib/                              # Standalone libraries
 │   ├── html2blocks.js               # HTML to blocks parser
 │   └── blocks2html.js               # Blocks to HTML serializer
+├── package/                          # CLI tool for pattern generation
+│   ├── src/                         # Parser implementations
+│   │   ├── htmlToBlocks.js          # Node.js HTML parser
+│   │   ├── blocksToHtml.js          # Node.js serializer
+│   │   └── htmlToPattern.js         # Pattern file generator
+│   ├── bin/cli.js                   # CLI entry point
+│   ├── CONVERT.md                   # Conversion guide
+│   └── CHANGELOG.md                 # Version history
 ├── docs/                             # Documentation
-│   ├── parsers/                     # Parser documentation
-│   │   ├── README.md                # Parser overview
-│   │   ├── html-to-blocks.md        # HTML import details
-│   │   └── blocks-to-html.md        # HTML export details
-│   ├── block-context.md             # Dynamic content guide
-│   ├── preview-context.md           # Preview system docs
-│   └── block-appender.md            # Appender customization
+│   ├── lib-parsers.md               # Parser documentation
+│   ├── writing-dynamic-html.md      # Dynamic content guide
+│   └── dynamic-preview.md           # Preview system docs
 ├── _legacy/                          # Legacy code (archived)
 ├── build/                            # Build output (generated)
 ├── universal-block.php               # Main plugin file
@@ -293,46 +298,70 @@ universal-block/
 - [CLAUDE.md](CLAUDE.md) - Complete development guide and architecture overview
 - [block.json](block.json) - Block registration and metadata
 
-### Parsers
-- [Parser Overview](docs/parsers/README.md) - System overview and roundtrip consistency
-- [HTML to Blocks](docs/parsers/html-to-blocks.md) - Import process and edge cases
-- [Blocks to HTML](docs/parsers/blocks-to-html.md) - Export process and formatting
+### Parsers & CLI
+- [lib-parsers.md](docs/lib-parsers.md) - HTML ↔ Blocks conversion system
+- [package/CONVERT.md](package/CONVERT.md) - CLI tool for HTML → PHP pattern conversion
+- [package/CHANGELOG.md](package/CHANGELOG.md) - Version history and migration guide
 
 ### Dynamic Features
-- [Block Context](docs/block-context.md) - Timber/Twig integration guide
-- [Preview Context](docs/preview-context.md) - Preview system configuration
-- [Block Appender](docs/block-appender.md) - Customizing the block inserter
+- [writing-dynamic-html.md](docs/writing-dynamic-html.md) - Timber/Twig integration guide
+- [dynamic-preview.md](docs/dynamic-preview.md) - Preview system with live data
 
-## REST API Endpoints
+## CLI Tool
 
-- `POST /wp-json/universal-block/v1/preview` - Full page context preview
-- `POST /wp-json/universal-block/v1/dynamic-preview` - Individual block preview with Timber
-- `POST /wp-json/universal-block/v1/preview-settings` - Save preview configuration
+Convert HTML files to WordPress PHP patterns:
+
+```bash
+# Install CLI globally
+cd package
+npm install
+npm link
+
+# Convert single file
+universal-block convert hero.html --namespace=mytheme
+
+# Convert directory
+universal-block convert ./patterns -o ./theme/patterns --namespace=mytheme --category="featured"
+
+# With full metadata
+universal-block convert page.html \
+  --namespace=mytheme \
+  --category="pages,layouts" \
+  --description="Custom page layout"
+```
+
+See [package/CONVERT.md](package/CONVERT.md) for complete CLI documentation.
 
 ## Timber Context
 
-Available in dynamic tags:
+Available Twig variables:
 - `post` - Current post object with meta, thumbnail, etc.
 - `user` - Current user with ID, display_name, etc.
 - `page_data` - Custom page data via filters
 - Test variables for preview mode
 
-Use in dynamic tags:
+Use with Twig control attributes:
 ```html
-<h1>{{ post.title }}</h1>
-<img src="{{ post.thumbnail.src }}" alt="{{ post.thumbnail.alt }}" />
-<p>By {{ post.author.display_name }}</p>
+<div loopSource="posts" loopVariable="post">
+  <h2>{{ post.title }}</h2>
+  <img src="{{ post.thumbnail.src }}" alt="{{ post.thumbnail.alt }}" />
+  <p>By {{ post.author.display_name }}</p>
+</div>
 ```
 
 ## Attribute Storage
 
 - **globalAttrs**: All HTML attributes EXCEPT class (id, style, data-*, aria-*, href, src, etc.)
-- **className**: WordPress-managed classes (official way, managed by PlainClassesManager)
+- **className**: WordPress-managed classes (CSS class string)
 - **content**: Text/HTML content (not used for blocks contentType)
 - **tagName**: Current HTML element
 - **contentType**: Content handling mode (blocks, text, html, empty)
-- **blockContext**: Optional Timber context name for custom data
-- **isDynamic**: Flag for dynamic preview mode
+- **loopSource**: Twig loop expression (e.g., "posts", "items")
+- **loopVariable**: Loop item variable name (default: "item")
+- **conditionalExpression**: Twig conditional (e.g., "user.ID > 0")
+- **setVariable**: Variable name for set tags
+- **setExpression**: Variable value expression
+- **dynamicPreview**: Flag for dynamic preview mode (Phase 1)
 
 ## Security & Sanitization
 
