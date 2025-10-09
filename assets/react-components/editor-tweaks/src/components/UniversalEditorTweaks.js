@@ -5,6 +5,7 @@ import HtmlEditorPopup from './HtmlEditorPopup';
 import HtmlImportDrawer from './HtmlImportDrawer';
 import AttributesEditorPopup from './AttributesEditorPopup';
 import PreviewSettingsDrawer from './PreviewSettingsDrawer';
+import FloatingStylePanel from './FloatingStylePanel';
 import usePreferencesStore from '../store/usePreferencesStore';
 
 const { __ } = wp.i18n;
@@ -97,9 +98,9 @@ function useCanvasManager() {
 
 /**
  * Sidebar Component
- * Minimal sidebar with HTML import and preview settings buttons
+ * Minimal sidebar with HTML import, preview settings, and style panel buttons
  */
-function Sidebar({ onToggleHtmlImport, onTogglePreviewSettings, isLeftSide }) {
+function Sidebar({ onToggleHtmlImport, onTogglePreviewSettings, onToggleStylePanel, isStylePanelActive, isLeftSide }) {
   return (
     <motion.div
       initial={{ x: isLeftSide ? -60 : 60 }}
@@ -125,6 +126,34 @@ function Sidebar({ onToggleHtmlImport, onTogglePreviewSettings, isLeftSide }) {
     >
       {/* Bottom buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {/* Style Panel Button */}
+        <button
+          onClick={onToggleStylePanel}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: isStylePanelActive ? '#10b981' : '#1e1e1e',
+            cursor: 'pointer',
+            padding: '12px',
+            borderRadius: '4px',
+            transition: 'background 0.2s, color 0.2s',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          title={isStylePanelActive ? "Hide Style Panel" : "Show Style Panel"}
+          aria-label={isStylePanelActive ? "Hide Style Panel" : "Show Style Panel"}
+          aria-pressed={isStylePanelActive}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+            <path d="M5.00006 3L4.35006 6.34H17.9401L17.5001 8.5H3.92006L3.26006 11.83H16.8501L16.0901 15.64L10.6101 17.45L5.86006 15.64L6.19006 14H2.85006L2.06006 18L9.91006 21L18.9601 18L20.1601 11.97L20.4001 10.76L21.9401 3H5.00006Z"></path>
+          </svg>
+        </button>
+
         {/* HTML Import Button */}
         <button
           onClick={onToggleHtmlImport}
@@ -185,6 +214,7 @@ function UniversalEditorTweaks() {
   const [isHtmlImportOpen, setIsHtmlImportOpen] = useState(false);
   const [isAttributesEditorOpen, setIsAttributesEditorOpen] = useState(false);
   const [isPreviewSettingsOpen, setIsPreviewSettingsOpen] = useState(false);
+  const [isStylePanelOpen, setIsStylePanelOpen] = useState(false);
   const { isLeftSide } = usePreferencesStore();
   const { editorWidthChange } = useCanvasManager();
 
@@ -215,12 +245,15 @@ function UniversalEditorTweaks() {
     };
   }, []);
 
+
   return (
     <>
       {/* Sidebar */}
       <Sidebar
         onToggleHtmlImport={() => setIsHtmlImportOpen(true)}
         onTogglePreviewSettings={() => setIsPreviewSettingsOpen(true)}
+        onToggleStylePanel={() => setIsStylePanelOpen(prev => !prev)}
+        isStylePanelActive={isStylePanelOpen}
         isLeftSide={isLeftSide}
       />
 
@@ -246,6 +279,12 @@ function UniversalEditorTweaks() {
       <PreviewSettingsDrawer
         isOpen={isPreviewSettingsOpen}
         onClose={() => setIsPreviewSettingsOpen(false)}
+      />
+
+      {/* Floating Style Panel */}
+      <FloatingStylePanel
+        isOpen={isStylePanelOpen}
+        onClose={() => setIsStylePanelOpen(false)}
       />
     </>
   );
