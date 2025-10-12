@@ -8,8 +8,7 @@ import {
 	useInnerBlocksProps
 } from '@wordpress/block-editor';
 import { createBlock } from '@wordpress/blocks';
-import { useDispatch, useSelect } from '@wordpress/data';
-import { useEffect } from '@wordpress/element';
+import { useMemo, useCallback } from '@wordpress/element';
 import {
 	PanelBody,
 	SelectControl,
@@ -26,6 +25,24 @@ import TagNameToolbar from './TagNameToolbar';
 import PlainClassesManager from './PlainClassesManager';
 import TwigControlsPanel from './TwigControlsPanel';
 
+// Hoisted constants (created once, not per render)
+const CONTENT_TYPE_OPTIONS = [
+	{ label: 'Blocks (Container)', value: 'blocks' },
+	{ label: 'Text', value: 'text' },
+	{ label: 'HTML', value: 'html' },
+	{ label: 'Empty', value: 'empty' }
+];
+
+const DATABASE_ICON_SVG = (
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+		<path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.59 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm6 14c0 .55-2.69 2-6 2s-6-1.45-6-2v-2.23c1.61.78 3.72 1.23 6 1.23s4.39-.45 6-1.23V17zm0-4.55c-1.3.95-3.58 1.55-6 1.55s-4.7-.6-6-1.55V9.64c1.47.83 3.61 1.36 6 1.36s4.53-.53 6-1.36v2.81zM12 9C8.69 9 6 7.55 6 7s2.69-2 6-2 6 1.45 6 2-2.69 2-6 2z" />
+	</svg>
+);
+
+const INNER_BLOCKS_CONFIG = {
+	renderAppender: InnerBlocks.ButtonBlockAppender
+};
+
 export default function Edit({ attributes, setAttributes, clientId }) {
 	const {
 		tagName = 'div',
@@ -37,110 +54,58 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 		dynamicPreview = false
 	} = attributes;
 
-	// Check if this block is currently selected and get full block data
-	const { isSelected, block } = useSelect(
-		(select) => {
-			const selectedBlockId = select('core/block-editor').getSelectedBlockClientId();
-			return {
-				isSelected: selectedBlockId === clientId,
-				block: select('core/block-editor').getBlock(clientId)
-			};
-		},
-		[clientId]
-	);
-
-	// Debug: Log block when selected
-	useEffect(() => {
-		if (isSelected && block) {
-			console.log(block);
+	// Memoize filtered global attributes
+	const filteredGlobalAttrs = useMemo(() => {
+		const out = {};
+		for (const k in globalAttrs) {
+			if (k !== 'class') {
+				out[k] = globalAttrs[k];
+			}
 		}
-	}, [isSelected]);
-
-	// Get className from attributes (WordPress-managed)
-	const className = attributes.className || '';
-
-	// Filter out 'class' from globalAttrs - we use className instead (WordPress official way)
-	const filteredGlobalAttrs = Object.keys(globalAttrs).reduce((acc, key) => {
-		if (key !== 'class') {
-			acc[key] = globalAttrs[key];
+		if (!out.id) {
+			out.id = `block-${clientId}`;
 		}
-		return acc;
-	}, {});
-
-	// Add block ID if not already set
-	if (!filteredGlobalAttrs.id) {
-		filteredGlobalAttrs.id = `block-${clientId}`;
-	}
+		return out;
+	}, [globalAttrs, clientId]);
 
 	// For blocks content type, apply blockProps directly to the element (no wrapper)
 	const blockProps = useBlockProps({
-		className: className,
+		className: attributes.className || '',
 		...filteredGlobalAttrs
 	});
 
 	// For blocks content type, use innerBlocksProps merged with our element props
-	const innerBlocksProps = useInnerBlocksProps(blockProps, {
-		renderAppender: InnerBlocks.ButtonBlockAppender
-	});
+	const innerBlocksProps = useInnerBlocksProps(blockProps, INNER_BLOCKS_CONFIG);
 
-	const contentTypeOptions = [
-		{ label: 'Blocks (Container)', value: 'blocks' },
-		{ label: 'Text', value: 'text' },
-		{ label: 'HTML', value: 'html' },
-		{ label: 'Empty', value: 'empty' }
-	];
+	// Memoize element props for non-blocks content types
+	const elementProps = useMemo(() => ({ ...blockProps }), [blockProps]);
 
-	const { replaceBlocks, updateBlockAttributes } = useDispatch('core/block-editor');
+	// PERFORMANCE: Metadata updates disabled - they were causing 4+ second delays on pages with many blocks
+	// The block labels in the list view are nice-to-have but not critical for functionality
+	// TODO: Implement lazy metadata updates (only when block is selected or visible in viewport)
 
-	// Update block label based on blockName, tagName, and Twig controls
-	useEffect(() => {
-		const {
-			loopSource,
-			conditionalVisibility,
-			setVariable
-		} = attributes;
-
-		// Determine dynamic type
-		let dynamicType = '';
-		if (setVariable) {
-			dynamicType = 'Set';
-		} else if (loopSource) {
-			dynamicType = 'Loop';
-		} else if (conditionalVisibility) {
-			dynamicType = 'If';
-		}
-
-		// Build label: "TagName | Dynamic" or just "TagName" or custom blockName
-		let label = blockName || tagName || 'Element';
-		if (dynamicType) {
-			label = `${tagName} | ${dynamicType}`;
-		}
-
-		// Update the block's metadata to show custom label
-		updateBlockAttributes(clientId, {
-			metadata: {
-				name: label
-			}
-		});
-	}, [blockName, tagName, attributes.loopSource, attributes.conditionalVisibility, attributes.setVariable, clientId, updateBlockAttributes]);
+	// Memoized callbacks
+	const onTagChange = useCallback((value) => setAttributes({ tagName: value }), [setAttributes]);
+	const onContentTypeChange = useCallback((value) => setAttributes({ contentType: value }), [setAttributes]);
+	const onDynamicPreviewToggle = useCallback(() => setAttributes({ dynamicPreview: !dynamicPreview }), [dynamicPreview, setAttributes]);
 
 	// Open HTML editor popup
-	const openHtmlEditor = () => {
+	const openHtmlEditor = useCallback(() => {
 		if (typeof window.openUniversalBlockHtmlEditor === 'function') {
 			window.openUniversalBlockHtmlEditor();
 		} else {
 			console.error('HTML Editor not available. Make sure editor tweaks are loaded.');
 		}
-	};
+	}, []);
 
 	// Open Attributes editor popup
-	const openAttributesEditor = () => {
+	const openAttributesEditor = useCallback(() => {
 		if (typeof window.openUniversalBlockAttributesEditor === 'function') {
 			window.openUniversalBlockAttributesEditor();
 		} else {
 			console.error('Attributes Editor not available. Make sure editor tweaks are loaded.');
 		}
-	};
+	}, []);
 
 	// Convert HTML to blocks
 	const convertToBlocks = () => {
@@ -223,30 +188,21 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 
 	const TagElement = tagName;
 
-	// Build element props for non-blocks content types
-	const elementProps = {
-		...blockProps,
-	};
-
 	return (
 		<>
 			<BlockControls>
 				<ToolbarGroup>
 					<TagNameToolbar
 						tagName={tagName}
-						onChange={(value) => setAttributes({ tagName: value })}
+						onChange={onTagChange}
 					/>
 				</ToolbarGroup>
 			<ToolbarGroup>
 				<Button
-					icon={
-						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-							<path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.59 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm6 14c0 .55-2.69 2-6 2s-6-1.45-6-2v-2.23c1.61.78 3.72 1.23 6 1.23s4.39-.45 6-1.23V17zm0-4.55c-1.3.95-3.58 1.55-6 1.55s-4.7-.6-6-1.55V9.64c1.47.83 3.61 1.36 6 1.36s4.53-.53 6-1.36v2.81zM12 9C8.69 9 6 7.55 6 7s2.69-2 6-2 6 1.45 6 2-2.69 2-6 2z" />
-						</svg>
-					}
+					icon={DATABASE_ICON_SVG}
 					label={__('Toggle Dynamic Preview', 'universal-block')}
 					isPressed={dynamicPreview}
-					onClick={() => setAttributes({ dynamicPreview: !dynamicPreview })}
+					onClick={onDynamicPreviewToggle}
 				/>
 			</ToolbarGroup>
 			</BlockControls>
@@ -279,8 +235,8 @@ export default function Edit({ attributes, setAttributes, clientId }) {
 					<SelectControl
 						label={__('Content Type', 'universal-block')}
 						value={contentType}
-						options={contentTypeOptions}
-						onChange={(value) => setAttributes({ contentType: value })}
+						options={CONTENT_TYPE_OPTIONS}
+						onChange={onContentTypeChange}
 					/>
 
 

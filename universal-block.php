@@ -183,11 +183,17 @@ require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-api.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/api/class-preview-settings-api.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/blocks/class-block-processor.php';
 require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/twig/class-twig-helpers.php';
+require_once UNIVERSAL_BLOCK_PLUGIN_DIR . 'includes/helpers/class-fullscreen-admin.php';
 
 /**
  * Initialize editor tweaks.
  */
 EditorTweaks::init();
+
+/**
+ * Initialize fullscreen admin mode.
+ */
+Fullscreen_Admin::init();
 
 /**
  * Enqueue preview context to editor.

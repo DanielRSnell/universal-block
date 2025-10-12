@@ -456,16 +456,16 @@ window.universalBatchOperations = {
 
 // Initialize the API when WordPress is ready
 if (typeof wp !== 'undefined' && wp.domReady) {
-    wp.domReady(() => {
-        console.log('🚀 Universal Block API initialized');
+    // wp.domReady(() => {
+    //     console.log('🚀 Universal Block API initialized');
 
-        // Log API methods for discoverability
-        console.log('Available Universal Block API methods:', {
-            'universalBlockUtils': Object.keys(window.universalBlockUtils),
-            'universalInsertBlock': 'Insert blocks with smart positioning',
-            'universalControlEditorWidth': 'Control editor drawer width',
-            'universalCreateBlockMarkup': 'Create Universal Block markup',
-            'universalBatchOperations': Object.keys(window.universalBatchOperations)
-        });
-    });
+    //     // Log API methods for discoverability
+    //     console.log('Available Universal Block API methods:', {
+    //         'universalBlockUtils': Object.keys(window.universalBlockUtils),
+    //         'universalInsertBlock': 'Insert blocks with smart positioning',
+    //         'universalControlEditorWidth': 'Control editor drawer width',
+    //         'universalCreateBlockMarkup': 'Create Universal Block markup',
+    //         'universalBatchOperations': Object.keys(window.universalBatchOperations)
+    //     });
+    // });
 }
